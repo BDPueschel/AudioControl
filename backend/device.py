@@ -1,5 +1,5 @@
 import copy
-from models import DspState, FilterState, DEFAULTS
+from .models import DspState, FilterState, DEFAULTS
 
 
 class DeviceController:
@@ -13,7 +13,7 @@ class DeviceController:
         return self._state.model_copy(deep=True)
 
     def set_master_gain(self, value: float) -> DspState:
-        clamped = max(-60.0, min(0.0, round(value * 2) / 2))
+        clamped = float(max(-60, min(0, round(value))))
         self._state.master_gain = clamped
         return self.get_state()
 

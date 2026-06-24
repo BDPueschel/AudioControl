@@ -2,8 +2,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from models import DspState, GainRequest, FilterRequest
-from device import DeviceController
+from .models import DspState, GainRequest, FilterRequest
+from .device import DeviceController
 
 app = FastAPI(title="AudioControl")
 device = DeviceController()
