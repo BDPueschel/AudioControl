@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AudioControl — Listening Room</title>
+<style>
+  :root {
+    --bg: #0d0e10;
+    --panel: #16181b;
+    --panel2: #1d2024;
+    --line: #2a2e33;
+    --grey: #3a3f46;
+    --txt: #e9ebee;
+    --txt2: #9aa0a8;
+    --txt3: #6b7178;
+    --cyan: #5EC8D8;
+    --err: #e06b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Top bar */
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .bar .t { font-size: 12.5px; font-weight: 600; letter-spacing: .5px; color: var(--txt2); }
+  .barright { display: flex; align-items: center; gap: 14px; }
+  .live { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--txt3); }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--grey);
+    transition: background .3s, box-shadow .3s;
+  }
+  .dot.connected {
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .dot.disconnected {
+    background: var(--err);
+    box-shadow: none;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .45; }
+  }
+
+  /* Reset button */
+  .reset {
+    font-size: 11px; font-weight: 600; letter-spacing: .3px;
+    padding: 7px 13px; border-radius: 9px;
+    border: 1px solid var(--line);
+    color: var(--txt2); background: var(--panel);
+    cursor: pointer; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .reset.armed { border-color: var(--err); color: var(--err); background: rgba(224,107,107,.08); }
+  .reset.done  { border-color: var(--cyan); color: var(--cyan); }
+
+  /* Two-column layout */
+  .cols {
+    display: flex;
+    gap: 24px;
+    padding: 22px;
+    flex: 1;
+  }
+  .col { flex: 1; display: flex; flex-direction: column; gap: 22px; }
+  .col.right { flex: 1.05; }
+  .divv { width: 1px; background: var(--line); align-self: stretch; }
+
+  /* Section labels */
+  .lab { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--txt3); }
+
+  /* Control block */
+  .ctl .head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 13px; min-height: 24px;
+  }
+  .ctl .val {
+    font-size: 24px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .ctl .val small { font-size: 12px; color: var(--txt3); font-weight: 500; }
+  .ctl .val.pos { color: var(--cyan); }
+
+  /* Row with button + slider + button */
+  .rowc { display: flex; align-items: center; gap: 13px; transition: opacity .15s; }
+  .rowc.off { opacity: .35; pointer-events: none; }
+
+  /* Stepper buttons */
+  .btn {
+    flex: none; width: 50px; height: 50px;
+    border-radius: 14px;
+    background: var(--panel2); border: 1px solid var(--line);
+    color: var(--txt); font-size: 24px; font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+    transition: border-color .1s, color .1s;
+  }
+  .btn:active { border-color: var(--cyan); color: var(--cyan); }
+  .btn span { font-size: 8px; color: var(--txt3); letter-spacing: .4px; margin-top: 2px; }
+
+  /* Slider rail */
+  .srail {
+    position: relative; flex: 1; height: 16px;
+    touch-action: none; cursor: pointer;
+  }
+  .sbar  { position: absolute; inset: 0; border-radius: 9px; background: var(--grey); }
+  .sfill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9px; background: var(--cyan); }
+  .knob  {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--txt); border: 4px solid var(--bg);
+    box-shadow: 0 2px 6px rgba(0,0,0,.5);
+  }
+
+  /* Scrub magnifier */
+  .mag {
+    position: absolute; bottom: 32px; transform: translateX(-50%);
+    background: var(--panel2); border: 1px solid var(--cyan);
+    border-radius: 12px; padding: 7px 15px;
+    box-shadow: 0 8px 24px rgba(94,200,216,.22);
+    white-space: nowrap; display: none; pointer-events: none;
+  }
+  .mag b {
+    font-size: 26px; font-weight: 700;
+    font-variant-numeric: tabular-nums; color: var(--cyan);
+  }
+  .mag b small { font-size: 13px; color: var(--txt2); font-weight: 500; }
+  .mag::after {
+    content: ""; position: absolute; left: 50%; bottom: -7px;
+    transform: translateX(-50%) rotate(45deg);
+    width: 12px; height: 12px;
+    background: var(--panel2);
+    border-right: 1px solid var(--cyan); border-bottom: 1px solid var(--cyan);
+  }
+
+  /* Hint text */
+  .hint { font-size: 10.5px; color: var(--txt3); margin-top: 9px; text-align: center; font-style: italic; }
+
+  /* Frequency center display */
+  .freqmid { flex: 1; text-align: center; }
+  .freqmid b { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .freqmid small { font-size: 12px; color: var(--txt3); }
+
+  /* Bypass switch */
+  .swwrap { display: flex; align-items: center; gap: 8px; }
+  .swwrap .st { font-size: 9.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--txt3); width: 62px; text-align: right; }
+  .sw {
+    width: 42px; height: 24px; border-radius: 14px;
+    background: var(--grey); position: relative; cursor: pointer;
+    flex: none; transition: background .15s;
+  }
+  .sw.on { background: var(--cyan); }
+  .sw::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; transition: left .15s;
+  }
+  .sw.on::after { left: 21px; }
+
+  /* Curve box */
+  .curvebox {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px 8px; margin-top: 4px;
+  }
+  .clab {
+    display: flex; justify-content: space-between;
+    font-size: 9.5px; color: var(--txt3); letter-spacing: .5px; margin-bottom: 4px;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  .axis {
+    display: flex; justify-content: space-between;
+    font-size: 9px; color: var(--txt3); margin-top: 3px; padding: 0 2px;
+  }
+</style>
+</head>
+<body>
+
+  <div class="bar">
+    <span class="t">LISTENING ROOM</span>
+    <div class="barright">
+      <button class="reset" id="reset">&#8634; Reset</button>
+      <span class="live">
+        <span class="dot" id="dot"></span>
+        <span id="connLabel">connecting…</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="cols">
+
+    <!-- LEFT: gain sliders -->
+    <div class="col">
+
+      <div class="ctl">
+        <div class="head">
+          <span class="lab">Master Volume</span>
+          <span class="val" id="masterVal"></span>
+        </div>
+        <div class="rowc">
+          <div class="btn" id="masterMinus">&minus;<span>1 dB</span></div>
+          <div class="srail" id="masterRail">
+            <div class="sbar"></div>
+            <div class="sfill" id="masterFill"></div>
+            <div class="knob" id="masterKnob"></div>
+            <div class="mag" id="masterMag"><b id="masterMagVal"></b></div>
+          </div>
+          <div class="btn" id="masterPlus">+<span>1 dB</span></div>
+        </div>
+        <div class="hint">drag for big moves · tap &plusmn; for 1 dB trim</div>
+      </div>
+
+      <div class="ctl">
+        <div class="head">
+          <span class="lab">Sub Gain · both subs</span>
+          <span class="val pos" id="subVal"></span>
+        </div>
+        <div class="rowc">
+          <div class="btn" id="subMinus">&minus;<span>0.5</span></div>
+          <div class="srail" id="subRail">
+            <div class="sbar"></div>
+            <div class="sfill" id="subFill"></div>
+            <div class="knob" id="subKnob"></div>
+            <div class="mag" id="subMag"><b id="subMagVal"></b></div>
+          </div>
+          <div class="btn" id="subPlus">+<span>0.5</span></div>
+        </div>
+        <div class="hint">finer 0.5 dB steps for sub level matching</div>
+      </div>
+
+    </div>
+
+    <div class="divv"></div>
+
+    <!-- RIGHT: HPF + LPF + curve -->
+    <div class="col right">
+
+      <div class="ctl">
+        <div class="head">
+          <span class="lab">High-Pass · subsonic</span>
+          <div class="swwrap">
+            <span class="st" id="hpfSt"></span>
+            <div class="sw" id="hpfSw"></div>
+          </div>
+        </div>
+        <div class="rowc" id="hpfRow">
+          <div class="btn" id="hpfMinus">&minus;<span>5 Hz</span></div>
+          <div class="freqmid"><b id="hpfVal"></b><small> Hz</small></div>
+          <div class="btn" id="hpfPlus">+<span>5 Hz</span></div>
+        </div>
+      </div>
+
+      <div class="ctl">
+        <div class="head">
+          <span class="lab">Low-Pass · crossover</span>
+          <div class="swwrap">
+            <span class="st" id="lpfSt"></span>
+            <div class="sw" id="lpfSw"></div>
+          </div>
+        </div>
+        <div class="rowc" id="lpfRow">
+          <div class="btn" id="lpfMinus">&minus;<span>5 Hz</span></div>
+          <div class="freqmid"><b id="lpfVal"></b><small> Hz</small></div>
+          <div class="btn" id="lpfPlus">+<span>5 Hz</span></div>
+        </div>
+      </div>
+
+      <div class="curvebox">
+        <div class="clab"><span>SUB PASSBAND</span><span>24 dB/oct · LR4</span></div>
+        <svg viewBox="0 0 300 120" preserveAspectRatio="none">
+          <!-- grid lines -->
+          <line x1="0" y1="18" x2="300" y2="18" stroke="#2a2e33" stroke-width="1"/>
+          <line x1="0" y1="63" x2="300" y2="63" stroke="#23262b" stroke-width="1"/>
+          <line x1="0" y1="108" x2="300" y2="108" stroke="#23262b" stroke-width="1"/>
+          <!-- knee markers -->
+          <line id="hpfLine" y1="12" y2="112" stroke="#5EC8D8" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
+          <line id="lpfLine" y1="12" y2="112" stroke="#5EC8D8" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
+          <text id="hpfLabel" y="10" fill="#9aa0a8" font-size="8.5" text-anchor="middle" font-family="-apple-system,sans-serif"></text>
+          <text id="lpfLabel" y="10" fill="#9aa0a8" font-size="8.5" text-anchor="middle" font-family="-apple-system,sans-serif"></text>
+          <!-- curve fill + stroke -->
+          <path id="curveFill" fill="#5EC8D8" opacity=".10"/>
+          <path id="curve" fill="none" stroke="#5EC8D8" stroke-width="2.4" stroke-linejoin="round"/>
+          <!-- corner dots -->
+          <circle id="hpfDot" r="4.5" fill="#0d0e10" stroke="#5EC8D8" stroke-width="2.4"/>
+          <circle id="lpfDot" r="4.5" fill="#0d0e10" stroke="#5EC8D8" stroke-width="2.4"/>
+        </svg>
+        <div class="axis">
+          <span>20</span><span>40</span><span>80</span><span>160</span><span>320</span><span>640 Hz</span>
+        </div>
+      </div>
+
+      <div class="hint">flip a bypass to A/B · both knees move live</div>
+
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── ranges [min, max, step] ─────────────────────────────────────────────────
+  var R = {
+    master: [-60, 0, 1],
+    sub:    [-24, 12, 0.5],
+    hpf:    [20, 400, 5],
+    lpf:    [40, 500, 5]
+  };
+  var GAP = 10; // Hz gap enforced between HPF and LPF
+
+  // ── server state mirror ─────────────────────────────────────────────────────
+  var state = null;
+  var pendingSlider = { master: null, sub: null }; // last drag value, sent on pointerup
+
+  // ── helpers ─────────────────────────────────────────────────────────────────
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function fmtdB(v) {
+    var sign = v > 0 ? '+' : (v < 0 ? '−' : '');
+    return sign + Math.abs(v).toFixed(1);
+  }
+
+  function xOf(f) { return Math.log(f / 20) / Math.log(32) * 300; }
+
+  function dBat(f) {
+    var d = 0;
+    if (!state.hpf.bypass) d += -10 * Math.log10(1 + Math.pow(state.hpf.freq / f, 8));
+    if (!state.lpf.bypass) d += -10 * Math.log10(1 + Math.pow(f / state.lpf.freq, 8));
+    return d;
+  }
+
+  function yOf(dB) { return 18 + clamp(-dB, 0, 30) * 3; }
+
+  // ── API layer ───────────────────────────────────────────────────────────────
+  async function api(method, path, body) {
+    try {
+      var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      var r = await fetch('/api' + path, opts);
+      if (!r.ok) return null;
+      state = await r.json();
+      render();
+      return state;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ── health poll ─────────────────────────────────────────────────────────────
+  function setConnected(ok) {
+    var dot = document.getElementById('dot');
+    var lbl = document.getElementById('connLabel');
+    dot.className = 'dot ' + (ok ? 'connected' : 'disconnected');
+    lbl.textContent = ok ? 'minidsp connected' : 'disconnected';
+  }
+
+  async function pollHealth() {
+    try {
+      var r = await fetch('/api/health');
+      var h = await r.json();
+      setConnected(h.status === 'ok');
+    } catch (e) {
+      setConnected(false);
+    }
+  }
+
+  // ── render ──────────────────────────────────────────────────────────────────
+  function render() {
+    if (!state) return;
+
+    // Master gain
+    var mv = state.master_gain;
+    document.getElementById('masterVal').innerHTML = fmtdB(mv) + '<small> dB</small>';
+    setSlider('master', mv, R.master);
+
+    // Sub gain — positive in cyan
+    var sv = state.sub_gain;
+    var subValEl = document.getElementById('subVal');
+    subValEl.innerHTML = fmtdB(sv) + '<small> dB</small>';
+    subValEl.className = 'val' + (sv > 0 ? ' pos' : '');
+    setSlider('sub', sv, R.sub);
+
+    // HPF
+    var hpfOn = !state.hpf.bypass;
+    document.getElementById('hpfVal').textContent = state.hpf.freq;
+    document.getElementById('hpfSw').className = 'sw' + (hpfOn ? ' on' : '');
+    document.getElementById('hpfSt').textContent = hpfOn ? 'engaged' : 'bypassed';
+    document.getElementById('hpfRow').className = 'rowc' + (hpfOn ? '' : ' off');
+
+    // LPF
+    var lpfOn = !state.lpf.bypass;
+    document.getElementById('lpfVal').textContent = state.lpf.freq;
+    document.getElementById('lpfSw').className = 'sw' + (lpfOn ? ' on' : '');
+    document.getElementById('lpfSt').textContent = lpfOn ? 'engaged' : 'bypassed';
+    document.getElementById('lpfRow').className = 'rowc' + (lpfOn ? '' : ' off');
+
+    drawCurve();
+  }
+
+  function setSlider(key, val, range) {
+    var frac = (val - range[0]) / (range[1] - range[0]);
+    frac = clamp(frac, 0, 1);
+    document.getElementById(key + 'Fill').style.width = (frac * 100) + '%';
+    document.getElementById(key + 'Knob').style.left = 'calc(' + (frac * 100) + '% - 13px)';
+    var mag = document.getElementById(key + 'Mag');
+    mag.style.left = (frac * 100) + '%';
+    document.getElementById(key + 'MagVal').innerHTML = fmtdB(val) + '<small> dB</small>';
+  }
+
+  // ── crossover curve ─────────────────────────────────────────────────────────
+  function drawCurve() {
+    var N = 160, line = '';
+    for (var i = 0; i <= N; i++) {
+      var frac = i / N;
+      var f = 20 * Math.pow(32, frac);
+      var x = (frac * 300).toFixed(1);
+      var y = yOf(dBat(f)).toFixed(1);
+      line += (i === 0 ? 'M' : ' L') + x + ',' + y;
+    }
+    var fill = line + ' L300,120 L0,120 Z';
+    document.getElementById('curve').setAttribute('d', line);
+    document.getElementById('curveFill').setAttribute('d', fill);
+    cornerMarker('hpf', !state.hpf.bypass, state.hpf.freq);
+    cornerMarker('lpf', !state.lpf.bypass, state.lpf.freq);
+  }
+
+  function cornerMarker(key, on, freq) {
+    var x = xOf(freq), y = yOf(dBat(freq));
+    var dot = document.getElementById(key + 'Dot');
+    var ln  = document.getElementById(key + 'Line');
+    var lb  = document.getElementById(key + 'Label');
+    dot.setAttribute('cx', x.toFixed(1));
+    dot.setAttribute('cy', y.toFixed(1));
+    ln.setAttribute('x1', x.toFixed(1));
+    ln.setAttribute('x2', x.toFixed(1));
+    lb.setAttribute('x', x.toFixed(1));
+    lb.textContent = (key === 'hpf' ? 'HPF ' : 'LPF ') + freq + (on ? '' : ' · off');
+    dot.style.display = on ? '' : 'none';
+    ln.style.opacity  = on ? '.45' : '.12';
+    lb.style.opacity  = on ? '1'   : '.4';
+  }
+
+  // ── slider drag (magnifier + fire on pointerup) ─────────────────────────────
+  function attachSlider(key, range, apiPath) {
+    var rail = document.getElementById(key + 'Rail');
+    var mag  = document.getElementById(key + 'Mag');
+    var dragging = false;
+
+    function valueFromX(clientX) {
+      var b = rail.getBoundingClientRect();
+      var frac = clamp((clientX - b.left) / b.width, 0, 1);
+      var raw = range[0] + frac * (range[1] - range[0]);
+      return Math.round(raw / range[2]) * range[2];
+    }
+
+    function updateLocal(val) {
+      // Optimistically update the local state mirror for instant visual feedback
+      if (key === 'master') state.master_gain = val;
+      else if (key === 'sub') state.sub_gain = val;
+      setSlider(key, val, range);
+      // Update mag inline
+      document.getElementById(key + 'MagVal').innerHTML = fmtdB(val) + '<small> dB</small>';
+      pendingSlider[key] = val;
+    }
+
+    rail.addEventListener('pointerdown', function (e) {
+      dragging = true;
+      rail.setPointerCapture(e.pointerId);
+      mag.style.display = 'block';
+      updateLocal(valueFromX(e.clientX));
+    });
+
+    rail.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      updateLocal(valueFromX(e.clientX));
+    });
+
+    rail.addEventListener('pointerup', function (e) {
+      if (!dragging) return;
+      dragging = false;
+      mag.style.display = 'none';
+      var val = pendingSlider[key];
+      if (val !== null) {
+        api('POST', apiPath, { value: val });
+        pendingSlider[key] = null;
+      }
+    });
+
+    rail.addEventListener('pointercancel', function () {
+      dragging = false;
+      mag.style.display = 'none';
+    });
+  }
+
+  // ── stepper buttons ─────────────────────────────────────────────────────────
+  function nudgeMaster(delta) {
+    if (!state) return;
+    var v = clamp(Math.round((state.master_gain + delta) / 1) * 1, R.master[0], R.master[1]);
+    api('POST', '/master-gain', { value: v });
+  }
+
+  function nudgeSub(delta) {
+    if (!state) return;
+    var v = clamp(Math.round((state.sub_gain + delta) / 0.5) * 0.5, R.sub[0], R.sub[1]);
+    api('POST', '/sub-gain', { value: v });
+  }
+
+  function nudgeHpf(delta) {
+    if (!state) return;
+    var max = state.lpf.freq - GAP;
+    var v = clamp(Math.round((state.hpf.freq + delta) / 5) * 5, R.hpf[0], max);
+    api('POST', '/hpf', { freq: v });
+  }
+
+  function nudgeLpf(delta) {
+    if (!state) return;
+    var min = state.hpf.freq + GAP;
+    var v = clamp(Math.round((state.lpf.freq + delta) / 5) * 5, min, R.lpf[1]);
+    api('POST', '/lpf', { freq: v });
+  }
+
+  // ── bypass toggles ──────────────────────────────────────────────────────────
+  function toggleHpf() {
+    if (!state) return;
+    api('POST', '/hpf', { bypass: !state.hpf.bypass });
+  }
+
+  function toggleLpf() {
+    if (!state) return;
+    api('POST', '/lpf', { bypass: !state.lpf.bypass });
+  }
+
+  // ── reset two-tap morph ─────────────────────────────────────────────────────
+  var resetArmed = false;
+  var resetTimer = null;
+  var RESET_LABEL = '&#8634; Reset';
+
+  function handleReset() {
+    var btn = document.getElementById('reset');
+    if (!resetArmed) {
+      resetArmed = true;
+      btn.classList.add('armed');
+      btn.textContent = 'Tap again to reset';
+      resetTimer = setTimeout(function () {
+        resetArmed = false;
+        btn.classList.remove('armed');
+        btn.innerHTML = RESET_LABEL;
+      }, 3000);
+    } else {
+      clearTimeout(resetTimer);
+      resetArmed = false;
+      btn.classList.remove('armed');
+      api('POST', '/reset');
+      btn.classList.add('done');
+      btn.textContent = 'Reset ✓';
+      setTimeout(function () {
+        btn.classList.remove('done');
+        btn.innerHTML = RESET_LABEL;
+      }, 1200);
+    }
+  }
+
+  // ── wire up DOM ─────────────────────────────────────────────────────────────
+  function wireUp() {
+    // Gain sliders
+    attachSlider('master', R.master, '/master-gain');
+    attachSlider('sub',    R.sub,    '/sub-gain');
+
+    // Steppers
+    document.getElementById('masterMinus').addEventListener('click', function () { nudgeMaster(-1); });
+    document.getElementById('masterPlus').addEventListener('click',  function () { nudgeMaster(1); });
+    document.getElementById('subMinus').addEventListener('click',    function () { nudgeSub(-0.5); });
+    document.getElementById('subPlus').addEventListener('click',     function () { nudgeSub(0.5); });
+    document.getElementById('hpfMinus').addEventListener('click',    function () { nudgeHpf(-5); });
+    document.getElementById('hpfPlus').addEventListener('click',     function () { nudgeHpf(5); });
+    document.getElementById('lpfMinus').addEventListener('click',    function () { nudgeLpf(-5); });
+    document.getElementById('lpfPlus').addEventListener('click',     function () { nudgeLpf(5); });
+
+    // Bypass switches
+    document.getElementById('hpfSw').addEventListener('click', toggleHpf);
+    document.getElementById('lpfSw').addEventListener('click', toggleLpf);
+
+    // Reset button
+    document.getElementById('reset').addEventListener('click', handleReset);
+  }
+
+  // ── init ────────────────────────────────────────────────────────────────────
+  async function init() {
+    wireUp();
+    await api('GET', '/state');
+    await pollHealth();
+    setInterval(pollHealth, 5000);
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
