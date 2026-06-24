@@ -506,13 +506,15 @@
     rail.addEventListener('pointercancel', function () {
       dragging = false;
       mag.style.display = 'none';
+      pendingSlider[key] = null;
+      render();
     });
   }
 
   // ── stepper buttons ─────────────────────────────────────────────────────────
   function nudgeMaster(delta) {
     if (!state) return;
-    var v = clamp(Math.round((state.master_gain + delta) / 1) * 1, R.master[0], R.master[1]);
+    var v = clamp(Math.round(state.master_gain + delta), R.master[0], R.master[1]);
     api('POST', '/master-gain', { value: v });
   }
 
