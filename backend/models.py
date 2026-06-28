@@ -47,6 +47,16 @@ class MuteRequest(BaseModel):
     value: bool
 
 
+class QuickPlayItem(BaseModel):
+    name: str
+    url: str
+    subtitle: str = ""
+
+
+class PlayRequest(BaseModel):
+    url: str
+
+
 class FilterRequest(BaseModel):
     freq: int | None = None
     bypass: bool | None = None

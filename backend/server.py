@@ -3,9 +3,12 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from .models import DspState, GainRequest, FilterRequest, MuteRequest, GROUPS
+from .models import (
+    DspState, GainRequest, FilterRequest, MuteRequest, QuickPlayItem, PlayRequest, GROUPS,
+)
 from .device import DeviceController
 from . import nowplaying
+from . import quickplay
 
 
 def create_device() -> DeviceController:
@@ -93,6 +96,28 @@ def nowplaying_action(action: str):
     if action not in ("playpause", "play", "pause", "next", "previous"):
         raise HTTPException(status_code=404, detail=f"unknown action '{action}'")
     return nowplaying.action(action)
+
+
+# --- Quick Play --------------------------------------------------------------
+
+@app.get("/api/quickplay")
+def quickplay_list():
+    return quickplay.list_presets()
+
+
+@app.post("/api/quickplay")
+def quickplay_add(item: QuickPlayItem):
+    return quickplay.add_preset(item.name, item.url, item.subtitle)
+
+
+@app.delete("/api/quickplay/{pid}")
+def quickplay_delete(pid: str):
+    return quickplay.delete_preset(pid)
+
+
+@app.post("/api/quickplay/play")
+def quickplay_play(req: PlayRequest):
+    return quickplay.play(req.url)
 
 
 # Serve frontend — only mount if the directory exists.

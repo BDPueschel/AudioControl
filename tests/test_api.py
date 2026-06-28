@@ -36,6 +36,22 @@ def test_nowplaying_unknown_action_404():
     assert client.post("/api/nowplaying/frobnicate").status_code == 404
 
 
+def test_quickplay_list():
+    r = client.get("/api/quickplay")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+
+def test_quickplay_add_and_delete(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUDIOCONTROL_PRESETS_FILE", str(tmp_path / "presets.json"))
+    items = client.post("/api/quickplay", json={"name": "Test Album", "url": "https://music.apple.com/x"}).json()
+    match = [p for p in items if p["name"] == "Test Album"]
+    assert match, "added preset not found"
+    pid = match[0]["id"]
+    after = client.delete("/api/quickplay/" + pid).json()
+    assert all(p["id"] != pid for p in after)
+
+
 def test_master_gain_caps_at_minus_25():
     assert client.post("/api/master-gain", json={"value": 10.0}).json()["master_gain"] == -25.0
     assert client.post("/api/master-gain", json={"value": -100.0}).json()["master_gain"] == -60.0
