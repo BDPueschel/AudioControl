@@ -120,7 +120,8 @@
   /* Slider rail */
   .srail {
     position: relative; flex: 1; height: 16px;
-    touch-action: none; cursor: pointer;
+    /* Display-only: all level changes go through the +/- buttons (safety). */
+    touch-action: none; pointer-events: none; cursor: default;
   }
   .sbar  { position: absolute; inset: 0; border-radius: 9px; background: var(--grey); }
   .sfill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9px; background: var(--cyan); }
@@ -318,7 +319,7 @@
 
   // ── ranges [min, max, step] ─────────────────────────────────────────────────
   var R = {
-    master: [-60, 0, 1],
+    master: [-60, -25, 1],   // top capped at -25 dB for safety
     sub:    [-24, 12, 0.5],
     hpf:    [20, 400, 5],
     lpf:    [40, 500, 5]
@@ -484,7 +485,11 @@
       dragging = true;
       rail.setPointerCapture(e.pointerId);
       mag.style.display = 'block';
-      updateLocal(valueFromX(e.clientX));
+      var v = valueFromX(e.clientX);
+      // Safety: a tap on the master rail may only LOWER the volume. To raise
+      // it you must deliberately drag the knob (pointermove handles that).
+      if (key === 'master' && v > state.master_gain) v = state.master_gain;
+      updateLocal(v);
     });
 
     rail.addEventListener('pointermove', function (e) {
@@ -581,9 +586,8 @@
 
   // ── wire up DOM ─────────────────────────────────────────────────────────────
   function wireUp() {
-    // Gain sliders
-    attachSlider('master', R.master, '/master-gain');
-    attachSlider('sub',    R.sub,    '/sub-gain');
+    // Sliders are display-only — no drag/tap handlers attached. All level
+    // changes go through the +/- stepper buttons for safety.
 
     // Steppers
     document.getElementById('masterMinus').addEventListener('click', function () { nudgeMaster(-1); });

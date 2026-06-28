@@ -1,6 +1,11 @@
 import copy
 from .models import DspState, FilterState, DEFAULTS
 
+# Safety cap on master output. The miniDSP itself goes to 0 dB (full output),
+# but we never send louder than this to prevent accidental ear-blowing jumps.
+MASTER_GAIN_MIN = -60.0
+MASTER_GAIN_MAX = -25.0
+
 
 class DeviceController:
     """Abstract base for device communication.
@@ -13,7 +18,7 @@ class DeviceController:
         return self._state.model_copy(deep=True)
 
     def set_master_gain(self, value: float) -> DspState:
-        clamped = float(max(-60, min(0, round(value))))
+        clamped = float(max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(value))))
         self._state.master_gain = clamped
         return self.get_state()
 

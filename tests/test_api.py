@@ -27,7 +27,7 @@ def test_set_master_gain():
 
 def test_master_gain_clamps():
     r = client.post("/api/master-gain", json={"value": 10.0})
-    assert r.json()["master_gain"] == 0.0
+    assert r.json()["master_gain"] == -25.0  # safety cap
     r = client.post("/api/master-gain", json={"value": -100.0})
     assert r.json()["master_gain"] == -60.0
 
