@@ -26,6 +26,16 @@ def test_mute_toggle():
     assert client.post("/api/mute", json={"value": False}).json()["mute"] is False
 
 
+def test_nowplaying_endpoint():
+    r = client.get("/api/nowplaying")
+    assert r.status_code == 200
+    assert "available" in r.json()
+
+
+def test_nowplaying_unknown_action_404():
+    assert client.post("/api/nowplaying/frobnicate").status_code == 404
+
+
 def test_master_gain_caps_at_minus_25():
     assert client.post("/api/master-gain", json={"value": 10.0}).json()["master_gain"] == -25.0
     assert client.post("/api/master-gain", json={"value": -100.0}).json()["master_gain"] == -60.0

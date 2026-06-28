@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from .models import DspState, GainRequest, FilterRequest, MuteRequest, GROUPS
 from .device import DeviceController
+from . import nowplaying
 
 
 def create_device() -> DeviceController:
@@ -78,6 +79,20 @@ def set_lpf(group: str, req: FilterRequest):
 @app.post("/api/reset", response_model=DspState)
 def reset():
     return device.reset()
+
+
+# --- Now Playing (SMTC) ------------------------------------------------------
+
+@app.get("/api/nowplaying")
+def get_nowplaying():
+    return nowplaying.get()
+
+
+@app.post("/api/nowplaying/{action}")
+def nowplaying_action(action: str):
+    if action not in ("playpause", "play", "pause", "next", "previous"):
+        raise HTTPException(status_code=404, detail=f"unknown action '{action}'")
+    return nowplaying.action(action)
 
 
 # Serve frontend — only mount if the directory exists.

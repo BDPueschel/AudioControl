@@ -2,3 +2,9 @@ fastapi==0.115.*
 uvicorn[standard]==0.34.*
 httpx==0.28.*
 pytest==8.*
+
+# Now Playing (SMTC) — Windows only; the feature degrades gracefully if absent.
+winrt-Windows.Media.Control; sys_platform == "win32"
+winrt-Windows.Foundation; sys_platform == "win32"
+winrt-Windows.Foundation.Collections; sys_platform == "win32"
+winrt-Windows.Storage.Streams; sys_platform == "win32"

@@ -129,6 +129,22 @@
   svg { display: block; width: 100%; height: auto; }
   .axis { display: flex; justify-content: space-between; font-size: 9px; color: var(--txt3); margin-top: 3px; padding: 0 2px; }
 
+  /* Now Playing — slim inline bar */
+  .np { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; }
+  .np.dim { opacity: .55; }
+  .np-meta { min-width: 0; flex: 1; }
+  .np-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .np-sub { font-size: 12px; color: var(--txt2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .np-ctrls { display: flex; align-items: center; gap: 14px; flex: none; }
+  .npbtn {
+    width: 44px; height: 44px; border-radius: 50%; flex: none;
+    background: var(--panel2); border: 1px solid var(--line); color: var(--txt);
+    font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: border-color .1s, color .1s;
+  }
+  .npbtn:active { border-color: var(--cyan); color: var(--cyan); }
+  .npbig { width: 50px; height: 50px; font-size: 20px; }
+
   /* Portrait: stack columns, buttons-only (hide level bars) */
   @media (orientation: portrait) {
     .card-body { flex-direction: column; gap: 16px; }
@@ -151,6 +167,18 @@
   </div>
 
   <div class="stack">
+    <section class="card np" id="npCard" style="display:none">
+      <div class="np-meta">
+        <div class="np-title" id="npTitle">—</div>
+        <div class="np-sub" id="npSub"></div>
+      </div>
+      <div class="np-ctrls">
+        <button class="npbtn" id="npPrev" aria-label="previous">&#9198;</button>
+        <button class="npbtn npbig" id="npPlay" aria-label="play/pause">&#9199;</button>
+        <button class="npbtn" id="npNext" aria-label="next">&#9197;</button>
+      </div>
+    </section>
+
     <section class="card">
       <div class="card-h"><span class="card-title">Master</span><span class="card-tag">volume</span></div>
       <div class="card-body solo">
@@ -276,6 +304,25 @@
   async function pollHealth() {
     try { var h = await (await fetch('/api/health')).json(); setConnected(h.status === 'ok'); }
     catch (e) { setConnected(false); }
+  }
+
+  // ── now playing (SMTC) ────────────────────────────────────────────────────────
+  function renderNP(d) {
+    var card = document.getElementById('npCard');
+    if (!d || d.available === false) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    var playing = !!d.playing_session;
+    card.className = 'card np' + (playing ? '' : ' dim');
+    document.getElementById('npTitle').textContent = playing ? (d.title || 'Unknown') : 'Nothing playing';
+    var sub = playing ? [d.artist, d.album].filter(Boolean).join(' — ') : '';
+    document.getElementById('npSub').textContent = sub;
+    document.getElementById('npPlay').innerHTML = (d.status === 'playing') ? '&#9208;' : '&#9205;';
+  }
+  async function pollNP() {
+    try { renderNP(await (await fetch('/api/nowplaying')).json()); } catch (e) {}
+  }
+  async function npAction(a) {
+    try { renderNP(await (await fetch('/api/nowplaying/' + a, { method: 'POST' })).json()); } catch (e) {}
   }
 
   // ── render ──────────────────────────────────────────────────────────────────
@@ -428,6 +475,9 @@
   function wireUp() {
     document.getElementById('muteBtn').addEventListener('click', toggleMute);
     document.getElementById('reset').addEventListener('click', handleReset);
+    document.getElementById('npPrev').addEventListener('click', function () { npAction('previous'); });
+    document.getElementById('npPlay').addEventListener('click', function () { npAction('playpause'); });
+    document.getElementById('npNext').addEventListener('click', function () { npAction('next'); });
     Array.prototype.forEach.call(document.querySelectorAll('.segbtn'), function (b) {
       b.addEventListener('click', function () { setActive(b.getAttribute('data-g')); });
     });
@@ -462,6 +512,8 @@
     await api('GET', '/state');
     await pollHealth();
     setInterval(pollHealth, 5000);
+    pollNP();
+    setInterval(pollNP, 2500);
   }
 
   document.addEventListener('DOMContentLoaded', init);
