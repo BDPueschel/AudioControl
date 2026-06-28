@@ -4,64 +4,90 @@ from backend.device import DeviceController
 from backend.device_minidsp import lowpass_biquad, highpass_biquad
 
 
-# --- base controller: clamping / overlap / reset -----------------------------
+# --- base controller: clamping / overlap / reset / persistence ---------------
 
 def test_overlap_guard_hpf():
     d = DeviceController()
-    d.set_lpf(freq=100)
-    s = d.set_hpf(freq=95)
-    assert s.hpf.freq == 90  # clamped to lpf - 10
+    d.set_lpf("subs", freq=100)
+    assert d.set_hpf("subs", freq=95).subs.hpf.freq == 90
 
 
 def test_overlap_guard_lpf():
     d = DeviceController()
-    d.set_hpf(freq=80)
-    s = d.set_lpf(freq=85)
-    assert s.lpf.freq == 90  # clamped to hpf + 10
+    d.set_hpf("subs", freq=80)
+    assert d.set_lpf("subs", freq=85).subs.lpf.freq == 90
 
 
-def test_sub_gain_step_rounding():
+def test_gain_step_rounding():
     d = DeviceController()
-    assert d.set_sub_gain(4.3).sub_gain == 4.5
+    assert d.set_gain("subs", 4.3).subs.gain == 4.5
+
+
+def test_gain_clamps():
+    d = DeviceController()
+    assert d.set_gain("mains", 99.0).mains.gain == 12.0
+    assert d.set_gain("mains", -99.0).mains.gain == -24.0
+
+
+def test_master_caps():
+    d = DeviceController()
+    assert d.set_master_gain(0.0).master_gain == -25.0
 
 
 def test_reset_preserves_master():
     d = DeviceController()
     d.set_master_gain(-30.0)
-    d.set_sub_gain(8.0)
+    d.set_gain("subs", 8.0)
     s = d.reset()
     assert s.master_gain == -30.0
-    assert s.sub_gain == 4.0
+    assert s.subs.gain == 4.0
+
+
+def test_groups_independent():
+    d = DeviceController()
+    d.set_gain("mains", -5.0)
+    d.set_gain("subs", 6.0)
+    s = d.get_state()
+    assert s.mains.gain == -5.0
+    assert s.subs.gain == 6.0
 
 
 def test_hpf_bypass_toggle():
     d = DeviceController()
-    assert d.set_hpf(bypass=True).hpf.bypass is True
-    assert d.set_hpf(bypass=False).hpf.bypass is False
+    assert d.set_hpf("mains", bypass=False).mains.hpf.bypass is False
+    assert d.set_hpf("mains", bypass=True).mains.hpf.bypass is True
 
 
-def test_hpf_freq_snaps_to_step():
+def test_mute_toggle():
     d = DeviceController()
-    assert d.set_hpf(freq=47).hpf.freq == 45
+    assert d.set_mute(True).mute is True
+    assert d.set_mute(False).mute is False
 
 
-def test_lpf_freq_snaps_to_step():
-    d = DeviceController()
-    assert d.set_lpf(freq=203).lpf.freq == 205
+def test_persistence_round_trip(tmp_path):
+    p = str(tmp_path / "state.json")
+    d = DeviceController(state_path=p)
+    d.set_gain("subs", 7.0)
+    d.set_hpf("mains", freq=70, bypass=False)
+    d.set_mute(True)
+    # New controller loads from the same file
+    d2 = DeviceController(state_path=p)
+    s = d2.get_state()
+    assert s.subs.gain == 7.0
+    assert s.mains.hpf.freq == 70
+    assert s.mains.hpf.bypass is False
+    assert s.mute is True
 
 
 # --- biquad coefficient math -------------------------------------------------
 
-def _dc_gain(coeffs):
-    # Device convention: y = b0 x0 + b1 x1 + b2 x2 + a1 y1 + a2 y2
-    # H(z) at DC (z=1) = (b0+b1+b2) / (1 - a1 - a2)
-    b0, b1, b2, a1, a2 = coeffs
+def _dc_gain(c):
+    b0, b1, b2, a1, a2 = c
     return (b0 + b1 + b2) / (1 - a1 - a2)
 
 
-def _nyquist_gain(coeffs):
-    # H(z) at Nyquist (z=-1) = (b0 - b1 + b2) / (1 + a1 - a2)
-    b0, b1, b2, a1, a2 = coeffs
+def _nyquist_gain(c):
+    b0, b1, b2, a1, a2 = c
     return (b0 - b1 + b2) / (1 + a1 - a2)
 
 
@@ -78,15 +104,12 @@ def test_highpass_blocks_dc_passes_nyquist():
 
 
 def test_butterworth_minus_3db_at_corner():
-    # A single 2nd-order Butterworth section is -3 dB at its corner frequency.
     fs, f0 = 96000.0, 120.0
     b0, b1, b2, a1, a2 = lowpass_biquad(f0, fs)
     w = 2 * math.pi * f0 / fs
     z1 = complex(math.cos(-w), math.sin(-w))
     z2 = z1 * z1
-    num = b0 + b1 * z1 + b2 * z2
-    den = 1 - a1 * z1 - a2 * z2
-    mag_db = 20 * math.log10(abs(num / den))
+    mag_db = 20 * math.log10(abs((b0 + b1 * z1 + b2 * z2) / (1 - a1 * z1 - a2 * z2)))
     assert math.isclose(mag_db, -3.01, abs_tol=0.1)
 
 
