@@ -85,6 +85,29 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
 
 
+def _get_foreground():
+    try:
+        import ctypes
+        return ctypes.windll.user32.GetForegroundWindow()
+    except Exception:
+        return None
+
+
+def _bring_front(hwnd):
+    """Reliably foreground a window (tap Alt first to bypass the foreground lock)."""
+    if not hwnd:
+        return
+    try:
+        import ctypes
+        u = ctypes.windll.user32
+        u.keybd_event(0x12, 0, 0, 0)       # Alt down
+        u.keybd_event(0x12, 0, 0x0002, 0)  # Alt up
+        u.ShowWindow(hwnd, 9)              # SW_RESTORE
+        u.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
+
+
 def play(url: str, title: str = None) -> dict:
     deeplink = _to_deeplink(url)
     args = [sys.executable, os.path.abspath(__file__), "--play", deeplink]
@@ -108,15 +131,13 @@ def _play_native(url: str, title: str = None) -> int:
     """
     import uiautomation as auto
 
+    prev = _get_foreground()
     os.startfile(url)
     win = auto.WindowControl(searchDepth=1, RegexName="Apple Music")
     if not win.Exists(8, 0.5):
         print("Apple Music window not found")
         return 1
-    try:
-        win.SetActive()
-    except Exception:
-        pass
+    _bring_front(win.NativeWindowHandle)
 
     is_song = ("/song/" in url) or bool(re.search(r"[?&]i=", url))
     target = None
@@ -135,6 +156,7 @@ def _play_native(url: str, title: str = None) -> int:
                     nm = _norm(c.Name)
                     if target in nm and ("track" in nm or "minute" in nm):
                         c.DoubleClick(simulateMove=False)
+                        _bring_front(prev)
                         print("played track:", c.Name)
                         return 0
             time.sleep(0.4)
@@ -147,12 +169,15 @@ def _play_native(url: str, title: str = None) -> int:
         if btn.Exists(0, 0):
             try:
                 btn.GetInvokePattern().Invoke()
+                _bring_front(prev)
                 print("invoked Play")
                 return 0
             except Exception as e:
+                _bring_front(prev)
                 print("invoke failed:", e)
                 return 1
         time.sleep(0.4)
+    _bring_front(prev)
     print("no Play button found (already playing this item?)")
     return 0
 
