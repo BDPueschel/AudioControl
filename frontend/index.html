@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>AudioControl — Listening Room</title>
 <style>
   :root {
@@ -23,593 +23,442 @@
     color: var(--txt);
     font-family: -apple-system, system-ui, "SF Pro Text", sans-serif;
     min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
 
   /* Top bar */
   .bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 11px 18px;
-    border-bottom: 1px solid var(--line);
-    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 18px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: var(--bg); z-index: 5;
   }
+  .barleft { display: flex; align-items: center; gap: 14px; }
   .bar .t { font-size: 12.5px; font-weight: 600; letter-spacing: .5px; color: var(--txt2); }
   .barright { display: flex; align-items: center; gap: 14px; }
   .live { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--txt3); }
-  .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--grey);
-    transition: background .3s, box-shadow .3s;
-  }
-  .dot.connected {
-    background: var(--cyan);
-    box-shadow: 0 0 8px var(--cyan);
-    animation: pulse 2s ease-in-out infinite;
-  }
-  .dot.disconnected {
-    background: var(--err);
-    box-shadow: none;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .45; }
-  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--grey); transition: background .3s, box-shadow .3s; }
+  .dot.connected { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); animation: pulse 2s ease-in-out infinite; }
+  .dot.disconnected { background: var(--err); }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.45;} }
 
-  /* Reset button */
-  .reset {
+  .mutebtn, .reset {
     font-size: 11px; font-weight: 600; letter-spacing: .3px;
-    padding: 7px 13px; border-radius: 9px;
-    border: 1px solid var(--line);
-    color: var(--txt2); background: var(--panel);
-    cursor: pointer; white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
+    padding: 7px 13px; border-radius: 9px; border: 1px solid var(--line);
+    color: var(--txt2); background: var(--panel); cursor: pointer; white-space: nowrap;
     transition: border-color .15s, color .15s, background .15s;
   }
+  .mutebtn.on { border-color: var(--err); color: #fff; background: var(--err); }
   .reset.armed { border-color: var(--err); color: var(--err); background: rgba(224,107,107,.08); }
   .reset.done  { border-color: var(--cyan); color: var(--cyan); }
 
-  /* Two-column layout */
-  .cols {
-    display: flex;
-    gap: 24px;
-    padding: 22px;
-    flex: 1;
-  }
-  .col { flex: 1; display: flex; flex-direction: column; gap: 22px; }
-  .col.right { flex: 1.05; }
-  .divv { width: 1px; background: var(--line); align-self: stretch; }
+  /* Card stack */
+  .stack { max-width: 860px; margin: 0 auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+  .card-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .card-title { font-size: 13px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--txt); }
+  .card-tag { font-size: 10px; letter-spacing: .8px; text-transform: uppercase; color: var(--txt3); }
 
-  /* Section labels */
-  .lab { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--txt3); }
+  /* Mains/Subs segmented toggle */
+  .seg { display: flex; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 5px; }
+  .segbtn {
+    flex: 1; padding: 12px; border-radius: 8px; border: none; background: transparent;
+    color: var(--txt2); font-size: 12.5px; font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase; cursor: pointer; transition: background .15s, color .15s;
+  }
+  .segbtn.on { background: var(--cyan); color: #0d0e10; }
+
+  .card-body { display: flex; gap: 26px; }
+  .card-body .col { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+  .card-body.solo { display: block; }
 
   /* Control block */
-  .ctl .head {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 13px; min-height: 24px;
-  }
-  .ctl .val {
-    font-size: 24px; font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-  .ctl .val small { font-size: 12px; color: var(--txt3); font-weight: 500; }
-  .ctl .val.pos { color: var(--cyan); }
+  .lab { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--txt3); }
+  .ctl .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; min-height: 22px; }
 
-  /* Row with button + slider + button */
   .rowc { display: flex; align-items: center; gap: 13px; transition: opacity .15s; }
   .rowc.off { opacity: .35; pointer-events: none; }
 
-  /* Stepper buttons */
   .btn {
-    flex: none; width: 50px; height: 50px;
-    border-radius: 14px;
+    flex: none; width: 50px; height: 50px; border-radius: 14px;
     background: var(--panel2); border: 1px solid var(--line);
     color: var(--txt); font-size: 24px; font-weight: 600;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    cursor: pointer; line-height: 1;
-    -webkit-tap-highlight-color: transparent;
-    transition: border-color .1s, color .1s;
+    cursor: pointer; line-height: 1; transition: border-color .1s, color .1s;
   }
   .btn:active { border-color: var(--cyan); color: var(--cyan); }
   .btn span { font-size: 8px; color: var(--txt3); letter-spacing: .4px; margin-top: 2px; }
 
-  /* Slider rail */
-  .srail {
-    position: relative; flex: 1; height: 16px;
-    /* Display-only: all level changes go through the +/- buttons (safety). */
-    touch-action: none; pointer-events: none; cursor: default;
+  /* Center value (tappable to type) */
+  .valmid { flex: 1; text-align: center; border-radius: 10px; cursor: pointer; padding: 4px 0; }
+  .valmid b { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .valmid small { font-size: 12px; color: var(--txt3); }
+  .valmid.pos b { color: var(--cyan); }
+  .valmid:active { background: var(--panel2); }
+  input.edit {
+    width: 4.6em; font-family: inherit; font-size: 24px; font-weight: 700; text-align: center;
+    background: var(--panel2); color: var(--cyan); border: 1px solid var(--cyan);
+    border-radius: 9px; padding: 3px 4px; -webkit-appearance: none; -moz-appearance: textfield;
   }
-  .sbar  { position: absolute; inset: 0; border-radius: 9px; background: var(--grey); }
-  .sfill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 9px; background: var(--cyan); }
-  .knob  {
-    position: absolute; top: 50%; transform: translateY(-50%);
-    width: 26px; height: 26px; border-radius: 50%;
-    background: var(--txt); border: 4px solid var(--bg);
-    box-shadow: 0 2px 6px rgba(0,0,0,.5);
-  }
+  input.edit::-webkit-outer-spin-button, input.edit::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-  /* Scrub magnifier */
-  .mag {
-    position: absolute; bottom: 32px; transform: translateX(-50%);
-    background: var(--panel2); border: 1px solid var(--cyan);
-    border-radius: 12px; padding: 7px 15px;
-    box-shadow: 0 8px 24px rgba(94,200,216,.22);
-    white-space: nowrap; display: none; pointer-events: none;
+  /* Draggable level bar (landscape only) — relative, half-sensitivity drag */
+  .levelbar {
+    position: relative; height: 16px; background: var(--grey); border-radius: 9px;
+    margin-top: 16px; touch-action: none; cursor: grab;
   }
-  .mag b {
-    font-size: 26px; font-weight: 700;
-    font-variant-numeric: tabular-nums; color: var(--cyan);
+  .levelbar:active { cursor: grabbing; }
+  .lfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--cyan); border-radius: 9px; }
+  .lknob {
+    position: absolute; top: 50%; left: 0; transform: translateY(-50%);
+    width: 22px; height: 22px; border-radius: 50%; background: var(--txt);
+    border: 4px solid var(--bg); box-shadow: 0 2px 6px rgba(0,0,0,.5);
   }
-  .mag b small { font-size: 13px; color: var(--txt2); font-weight: 500; }
-  .mag::after {
-    content: ""; position: absolute; left: 50%; bottom: -7px;
-    transform: translateX(-50%) rotate(45deg);
-    width: 12px; height: 12px;
-    background: var(--panel2);
-    border-right: 1px solid var(--cyan); border-bottom: 1px solid var(--cyan);
-  }
-
-  /* Hint text */
-  .hint { font-size: 10.5px; color: var(--txt3); margin-top: 9px; text-align: center; font-style: italic; }
-
-  /* Frequency center display */
-  .freqmid { flex: 1; text-align: center; }
-  .freqmid b { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .freqmid small { font-size: 12px; color: var(--txt3); }
 
   /* Bypass switch */
   .swwrap { display: flex; align-items: center; gap: 8px; }
   .swwrap .st { font-size: 9.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--txt3); width: 62px; text-align: right; }
-  .sw {
-    width: 42px; height: 24px; border-radius: 14px;
-    background: var(--grey); position: relative; cursor: pointer;
-    flex: none; transition: background .15s;
-  }
+  .sw { width: 42px; height: 24px; border-radius: 14px; background: var(--grey); position: relative; cursor: pointer; flex: none; transition: background .15s; }
   .sw.on { background: var(--cyan); }
-  .sw::after {
-    content: ""; position: absolute; top: 3px; left: 3px;
-    width: 18px; height: 18px; border-radius: 50%;
-    background: #fff; transition: left .15s;
-  }
+  .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left .15s; }
   .sw.on::after { left: 21px; }
 
   /* Curve box */
-  .curvebox {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 12px; padding: 12px 14px 8px; margin-top: 4px;
-  }
-  .clab {
-    display: flex; justify-content: space-between;
-    font-size: 9.5px; color: var(--txt3); letter-spacing: .5px; margin-bottom: 4px;
-  }
+  .curvebox { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 8px; }
+  .clab { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--txt3); letter-spacing: .5px; margin-bottom: 4px; }
   svg { display: block; width: 100%; height: auto; }
-  .axis {
-    display: flex; justify-content: space-between;
-    font-size: 9px; color: var(--txt3); margin-top: 3px; padding: 0 2px;
+  .axis { display: flex; justify-content: space-between; font-size: 9px; color: var(--txt3); margin-top: 3px; padding: 0 2px; }
+
+  /* Portrait: stack columns, buttons-only (hide level bars) */
+  @media (orientation: portrait) {
+    .card-body { flex-direction: column; gap: 16px; }
+    .levelbar { display: none; }
+    .stack { padding: 12px; gap: 12px; }
   }
 </style>
 </head>
 <body>
 
   <div class="bar">
-    <span class="t">LISTENING ROOM</span>
+    <div class="barleft">
+      <span class="t">LISTENING ROOM</span>
+      <button class="mutebtn" id="muteBtn">Mute</button>
+    </div>
     <div class="barright">
       <button class="reset" id="reset">&#8634; Reset</button>
-      <span class="live">
-        <span class="dot" id="dot"></span>
-        <span id="connLabel">connecting…</span>
-      </span>
+      <span class="live"><span class="dot" id="dot"></span><span id="connLabel">connecting…</span></span>
     </div>
   </div>
 
-  <div class="cols">
-
-    <!-- LEFT: gain sliders -->
-    <div class="col">
-
-      <div class="ctl">
-        <div class="head">
-          <span class="lab">Master Volume</span>
-          <span class="val" id="masterVal"></span>
-        </div>
-        <div class="rowc">
-          <div class="btn" id="masterMinus">&minus;<span>1 dB</span></div>
-          <div class="srail" id="masterRail">
-            <div class="sbar"></div>
-            <div class="sfill" id="masterFill"></div>
-            <div class="knob" id="masterKnob"></div>
-            <div class="mag" id="masterMag"><b id="masterMagVal"></b></div>
+  <div class="stack">
+    <section class="card">
+      <div class="card-h"><span class="card-title">Master</span><span class="card-tag">volume</span></div>
+      <div class="card-body solo">
+        <div class="ctl">
+          <div class="rowc">
+            <button class="btn" id="masterMinus">&minus;<span>1 dB</span></button>
+            <div class="valmid val tap" id="masterVal"></div>
+            <button class="btn" id="masterPlus">+<span>1 dB</span></button>
           </div>
-          <div class="btn" id="masterPlus">+<span>1 dB</span></div>
+          <div class="levelbar" id="masterBar"><div class="lfill" id="masterFill"></div><div class="lknob" id="masterKnob"></div></div>
         </div>
-        <div class="hint">drag for big moves · tap &plusmn; for 1 dB trim</div>
       </div>
-
-      <div class="ctl">
-        <div class="head">
-          <span class="lab">Sub Gain · both subs</span>
-          <span class="val pos" id="subVal"></span>
-        </div>
-        <div class="rowc">
-          <div class="btn" id="subMinus">&minus;<span>0.5</span></div>
-          <div class="srail" id="subRail">
-            <div class="sbar"></div>
-            <div class="sfill" id="subFill"></div>
-            <div class="knob" id="subKnob"></div>
-            <div class="mag" id="subMag"><b id="subMagVal"></b></div>
-          </div>
-          <div class="btn" id="subPlus">+<span>0.5</span></div>
-        </div>
-        <div class="hint">finer 0.5 dB steps for sub level matching</div>
-      </div>
-
+    </section>
+    <div class="seg">
+      <button class="segbtn" data-g="mains">Main Speakers</button>
+      <button class="segbtn" data-g="subs">Subwoofers</button>
     </div>
-
-    <div class="divv"></div>
-
-    <!-- RIGHT: HPF + LPF + curve -->
-    <div class="col right">
-
-      <div class="ctl">
-        <div class="head">
-          <span class="lab">High-Pass · subsonic</span>
-          <div class="swwrap">
-            <span class="st" id="hpfSt"></span>
-            <div class="sw" id="hpfSw"></div>
-          </div>
-        </div>
-        <div class="rowc" id="hpfRow">
-          <div class="btn" id="hpfMinus">&minus;<span>5 Hz</span></div>
-          <div class="freqmid"><b id="hpfVal"></b><small> Hz</small></div>
-          <div class="btn" id="hpfPlus">+<span>5 Hz</span></div>
-        </div>
-      </div>
-
-      <div class="ctl">
-        <div class="head">
-          <span class="lab">Low-Pass · crossover</span>
-          <div class="swwrap">
-            <span class="st" id="lpfSt"></span>
-            <div class="sw" id="lpfSw"></div>
-          </div>
-        </div>
-        <div class="rowc" id="lpfRow">
-          <div class="btn" id="lpfMinus">&minus;<span>5 Hz</span></div>
-          <div class="freqmid"><b id="lpfVal"></b><small> Hz</small></div>
-          <div class="btn" id="lpfPlus">+<span>5 Hz</span></div>
-        </div>
-      </div>
-
-      <div class="curvebox">
-        <div class="clab"><span>SUB PASSBAND</span><span>24 dB/oct · LR4</span></div>
-        <svg viewBox="0 0 300 120" preserveAspectRatio="none">
-          <!-- grid lines -->
-          <line x1="0" y1="18" x2="300" y2="18" stroke="#2a2e33" stroke-width="1"/>
-          <line x1="0" y1="63" x2="300" y2="63" stroke="#23262b" stroke-width="1"/>
-          <line x1="0" y1="108" x2="300" y2="108" stroke="#23262b" stroke-width="1"/>
-          <!-- knee markers -->
-          <line id="hpfLine" y1="12" y2="112" stroke="#5EC8D8" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
-          <line id="lpfLine" y1="12" y2="112" stroke="#5EC8D8" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>
-          <text id="hpfLabel" y="10" fill="#9aa0a8" font-size="8.5" text-anchor="middle" font-family="-apple-system,sans-serif"></text>
-          <text id="lpfLabel" y="10" fill="#9aa0a8" font-size="8.5" text-anchor="middle" font-family="-apple-system,sans-serif"></text>
-          <!-- curve fill + stroke -->
-          <path id="curveFill" fill="#5EC8D8" opacity=".10"/>
-          <path id="curve" fill="none" stroke="#5EC8D8" stroke-width="2.4" stroke-linejoin="round"/>
-          <!-- corner dots -->
-          <circle id="hpfDot" r="4.5" fill="#0d0e10" stroke="#5EC8D8" stroke-width="2.4"/>
-          <circle id="lpfDot" r="4.5" fill="#0d0e10" stroke="#5EC8D8" stroke-width="2.4"/>
-        </svg>
-        <div class="axis">
-          <span>20</span><span>40</span><span>80</span><span>160</span><span>320</span><span>640 Hz</span>
-        </div>
-      </div>
-
-      <div class="hint">flip a bypass to A/B · both knees move live</div>
-
-    </div>
+    <div id="groups"></div>
   </div>
 
 <script>
 (function () {
   'use strict';
 
-  // ── ranges [min, max, step] ─────────────────────────────────────────────────
-  var R = {
-    master: [-60, -25, 1],   // top capped at -25 dB for safety
-    sub:    [-24, 12, 0.5],
-    hpf:    [20, 400, 5],
-    lpf:    [40, 500, 5]
-  };
-  var GAP = 10; // Hz gap enforced between HPF and LPF
+  var MASTER = [-60, -25, 1];
+  var GAINR  = [-24, 12, 0.5];
+  var HPFR   = [20, 400, 5];
+  var LPFR   = [40, 500, 5];
+  var GAP    = 10;
+  var GROUPS = [
+    { key: 'mains', title: 'Main Speakers', tag: 'L / R' },
+    { key: 'subs',  title: 'Subwoofers',    tag: 'L / R' }
+  ];
 
-  // ── server state mirror ─────────────────────────────────────────────────────
   var state = null;
-  var pendingSlider = { master: null, sub: null }; // last drag value, sent on pointerup
+  var active = 'subs';   // which group's card is in view
+  var DRAG_SENS = 0.5;   // value moves at half the speed of the finger
 
-  // ── helpers ─────────────────────────────────────────────────────────────────
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-  function fmtdB(v) {
-    var sign = v > 0 ? '+' : (v < 0 ? '−' : '');
-    return sign + Math.abs(v).toFixed(1);
-  }
-
+  function fmtdB(v) { return (v > 0 ? '+' : (v < 0 ? '−' : '')) + Math.abs(v).toFixed(1); }
+  function valHTML(txt, unit) { return '<b>' + txt + '</b><small> ' + unit + '</small>'; }
   function xOf(f) { return Math.log(f / 20) / Math.log(32) * 300; }
-
-  function dBat(f) {
+  function yOf(dB) { return 18 + clamp(-dB, 0, 30) * 3; }
+  function dBat(ch, f) {
     var d = 0;
-    if (!state.hpf.bypass) d += -10 * Math.log10(1 + Math.pow(state.hpf.freq / f, 8));
-    if (!state.lpf.bypass) d += -10 * Math.log10(1 + Math.pow(f / state.lpf.freq, 8));
+    if (!ch.hpf.bypass) d += -10 * Math.log10(1 + Math.pow(ch.hpf.freq / f, 8));
+    if (!ch.lpf.bypass) d += -10 * Math.log10(1 + Math.pow(f / ch.lpf.freq, 8));
     return d;
   }
 
-  function yOf(dB) { return 18 + clamp(-dB, 0, 30) * 3; }
+  // ── build group cards ───────────────────────────────────────────────────────
+  function cardHTML(g) {
+    var k = g.key;
+    function filterCtl(which, label) {
+      return '<div class="ctl">'
+        + '<div class="head"><span class="lab">' + label + '</span>'
+        + '<div class="swwrap"><span class="st" id="' + k + '-' + which + 'St"></span>'
+        + '<div class="sw" id="' + k + '-' + which + 'Sw"></div></div></div>'
+        + '<div class="rowc" id="' + k + '-' + which + 'Row">'
+        + '<button class="btn" id="' + k + '-' + which + 'Minus">&minus;<span>5 Hz</span></button>'
+        + '<div class="valmid tap" id="' + k + '-' + which + 'Val"></div>'
+        + '<button class="btn" id="' + k + '-' + which + 'Plus">+<span>5 Hz</span></button>'
+        + '</div></div>';
+    }
+    return '<section class="card" id="card-' + k + '">'
+      + '<div class="card-h"><span class="card-title">' + g.title + '</span><span class="card-tag">' + g.tag + '</span></div>'
+      + '<div class="card-body"><div class="col">'
+      + '<div class="ctl"><div class="head"><span class="lab">Gain</span></div>'
+      + '<div class="rowc">'
+      + '<button class="btn" id="' + k + '-gainMinus">&minus;<span>0.5</span></button>'
+      + '<div class="valmid val tap" id="' + k + '-gainVal"></div>'
+      + '<button class="btn" id="' + k + '-gainPlus">+<span>0.5</span></button>'
+      + '</div><div class="levelbar" id="' + k + '-gainBar"><div class="lfill" id="' + k + '-gainFill"></div><div class="lknob" id="' + k + '-gainKnob"></div></div></div>'
+      + '</div><div class="col">'
+      + filterCtl('hpf', 'High-Pass')
+      + filterCtl('lpf', 'Low-Pass')
+      + '<div class="curvebox"><div class="clab"><span>PASSBAND</span><span>24 dB/oct · LR4</span></div>'
+      + '<svg viewBox="0 0 300 120" preserveAspectRatio="none">'
+      + '<line x1="0" y1="18" x2="300" y2="18" stroke="#2a2e33" stroke-width="1"/>'
+      + '<line x1="0" y1="63" x2="300" y2="63" stroke="#23262b" stroke-width="1"/>'
+      + '<line x1="0" y1="108" x2="300" y2="108" stroke="#23262b" stroke-width="1"/>'
+      + '<line id="' + k + '-hpfLine" y1="12" y2="112" stroke="#5EC8D8" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>'
+      + '<line id="' + k + '-lpfLine" y1="12" y2="112" stroke="#5EC8D8" stroke-width="1" stroke-dasharray="3 3" opacity=".45"/>'
+      + '<path id="' + k + '-curveFill" fill="#5EC8D8" opacity=".10"/>'
+      + '<path id="' + k + '-curve" fill="none" stroke="#5EC8D8" stroke-width="2.4" stroke-linejoin="round"/>'
+      + '<circle id="' + k + '-hpfDot" r="4.5" fill="#0d0e10" stroke="#5EC8D8" stroke-width="2.4"/>'
+      + '<circle id="' + k + '-lpfDot" r="4.5" fill="#0d0e10" stroke="#5EC8D8" stroke-width="2.4"/>'
+      + '</svg><div class="axis"><span>20</span><span>40</span><span>80</span><span>160</span><span>320</span><span>640 Hz</span></div>'
+      + '</div></div></div></section>';
+  }
 
-  // ── API layer ───────────────────────────────────────────────────────────────
+  function buildCards() {
+    document.getElementById('groups').innerHTML = GROUPS.map(cardHTML).join('');
+  }
+
+  function setActive(k) {
+    active = k;
+    try { localStorage.setItem('ac_active', k); } catch (e) {}
+    GROUPS.forEach(function (g) {
+      document.getElementById('card-' + g.key).style.display = (g.key === k) ? '' : 'none';
+      var b = document.querySelector('.segbtn[data-g="' + g.key + '"]');
+      if (b) b.className = 'segbtn' + (g.key === k ? ' on' : '');
+    });
+  }
+
+  // ── API ─────────────────────────────────────────────────────────────────────
   async function api(method, path, body) {
     try {
       var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
       if (body !== undefined) opts.body = JSON.stringify(body);
       var r = await fetch('/api' + path, opts);
-      if (!r.ok) return null;
-      state = await r.json();
-      render();
-      return state;
-    } catch (e) {
-      return null;
-    }
+      if (r.ok) state = await r.json();
+    } catch (e) { /* keep last good state */ }
+    render();
+    return state;
   }
 
-  // ── health poll ─────────────────────────────────────────────────────────────
+  // ── health ──────────────────────────────────────────────────────────────────
   function setConnected(ok) {
-    var dot = document.getElementById('dot');
-    var lbl = document.getElementById('connLabel');
-    dot.className = 'dot ' + (ok ? 'connected' : 'disconnected');
-    lbl.textContent = ok ? 'minidsp connected' : 'disconnected';
+    document.getElementById('dot').className = 'dot ' + (ok ? 'connected' : 'disconnected');
+    document.getElementById('connLabel').textContent = ok ? 'minidsp connected' : 'disconnected';
   }
-
   async function pollHealth() {
-    try {
-      var r = await fetch('/api/health');
-      var h = await r.json();
-      setConnected(h.status === 'ok');
-    } catch (e) {
-      setConnected(false);
-    }
+    try { var h = await (await fetch('/api/health')).json(); setConnected(h.status === 'ok'); }
+    catch (e) { setConnected(false); }
   }
 
   // ── render ──────────────────────────────────────────────────────────────────
+  function paint(prefix, frac) {
+    frac = clamp(frac, 0, 1);
+    document.getElementById(prefix + 'Fill').style.width = (frac * 100) + '%';
+    var kn = document.getElementById(prefix + 'Knob');
+    if (kn) kn.style.left = 'calc(' + (frac * 100) + '% - 11px)';
+  }
+
   function render() {
     if (!state) return;
+    var mb = document.getElementById('muteBtn');
+    mb.className = 'mutebtn' + (state.mute ? ' on' : '');
+    mb.textContent = state.mute ? 'Muted' : 'Mute';
 
-    // Master gain
-    var mv = state.master_gain;
-    document.getElementById('masterVal').innerHTML = fmtdB(mv) + '<small> dB</small>';
-    setSlider('master', mv, R.master);
+    document.getElementById('masterVal').innerHTML = valHTML(fmtdB(state.master_gain), 'dB');
+    paint('master', (state.master_gain - MASTER[0]) / (MASTER[1] - MASTER[0]));
 
-    // Sub gain — positive in cyan
-    var sv = state.sub_gain;
-    var subValEl = document.getElementById('subVal');
-    subValEl.innerHTML = fmtdB(sv) + '<small> dB</small>';
-    subValEl.className = 'val' + (sv > 0 ? ' pos' : '');
-    setSlider('sub', sv, R.sub);
-
-    // HPF
-    var hpfOn = !state.hpf.bypass;
-    document.getElementById('hpfVal').textContent = state.hpf.freq;
-    document.getElementById('hpfSw').className = 'sw' + (hpfOn ? ' on' : '');
-    document.getElementById('hpfSt').textContent = hpfOn ? 'engaged' : 'bypassed';
-    document.getElementById('hpfRow').className = 'rowc' + (hpfOn ? '' : ' off');
-
-    // LPF
-    var lpfOn = !state.lpf.bypass;
-    document.getElementById('lpfVal').textContent = state.lpf.freq;
-    document.getElementById('lpfSw').className = 'sw' + (lpfOn ? ' on' : '');
-    document.getElementById('lpfSt').textContent = lpfOn ? 'engaged' : 'bypassed';
-    document.getElementById('lpfRow').className = 'rowc' + (lpfOn ? '' : ' off');
-
-    drawCurve();
+    GROUPS.forEach(function (g) {
+      var ch = state[g.key], k = g.key;
+      var gv = document.getElementById(k + '-gainVal');
+      gv.innerHTML = valHTML(fmtdB(ch.gain), 'dB');
+      gv.className = 'valmid val tap' + (ch.gain > 0 ? ' pos' : '');
+      paint(k + '-gain', (ch.gain - GAINR[0]) / (GAINR[1] - GAINR[0]));
+      renderFilter(k, 'hpf', ch.hpf);
+      renderFilter(k, 'lpf', ch.lpf);
+      drawCurve(k, ch);
+    });
   }
 
-  function setSlider(key, val, range) {
-    var frac = (val - range[0]) / (range[1] - range[0]);
-    frac = clamp(frac, 0, 1);
-    document.getElementById(key + 'Fill').style.width = (frac * 100) + '%';
-    document.getElementById(key + 'Knob').style.left = 'calc(' + (frac * 100) + '% - 13px)';
-    var mag = document.getElementById(key + 'Mag');
-    mag.style.left = (frac * 100) + '%';
-    document.getElementById(key + 'MagVal').innerHTML = fmtdB(val) + '<small> dB</small>';
+  function renderFilter(k, which, fs) {
+    var on = !fs.bypass;
+    document.getElementById(k + '-' + which + 'Val').innerHTML = valHTML(fs.freq, 'Hz');
+    document.getElementById(k + '-' + which + 'Sw').className = 'sw' + (on ? ' on' : '');
+    document.getElementById(k + '-' + which + 'St').textContent = on ? 'engaged' : 'bypassed';
+    document.getElementById(k + '-' + which + 'Row').className = 'rowc' + (on ? '' : ' off');
   }
 
-  // ── crossover curve ─────────────────────────────────────────────────────────
-  function drawCurve() {
+  function drawCurve(k, ch) {
     var N = 160, line = '';
     for (var i = 0; i <= N; i++) {
-      var frac = i / N;
-      var f = 20 * Math.pow(32, frac);
-      var x = (frac * 300).toFixed(1);
-      var y = yOf(dBat(f)).toFixed(1);
-      line += (i === 0 ? 'M' : ' L') + x + ',' + y;
+      var frac = i / N, f = 20 * Math.pow(32, frac);
+      line += (i === 0 ? 'M' : ' L') + (frac * 300).toFixed(1) + ',' + yOf(dBat(ch, f)).toFixed(1);
     }
-    var fill = line + ' L300,120 L0,120 Z';
-    document.getElementById('curve').setAttribute('d', line);
-    document.getElementById('curveFill').setAttribute('d', fill);
-    cornerMarker('hpf', !state.hpf.bypass, state.hpf.freq);
-    cornerMarker('lpf', !state.lpf.bypass, state.lpf.freq);
+    document.getElementById(k + '-curve').setAttribute('d', line);
+    document.getElementById(k + '-curveFill').setAttribute('d', line + ' L300,120 L0,120 Z');
+    marker(k, 'hpf', ch.hpf, ch);
+    marker(k, 'lpf', ch.lpf, ch);
   }
 
-  function cornerMarker(key, on, freq) {
-    var x = xOf(freq), y = yOf(dBat(freq));
-    var dot = document.getElementById(key + 'Dot');
-    var ln  = document.getElementById(key + 'Line');
-    var lb  = document.getElementById(key + 'Label');
-    dot.setAttribute('cx', x.toFixed(1));
-    dot.setAttribute('cy', y.toFixed(1));
-    ln.setAttribute('x1', x.toFixed(1));
-    ln.setAttribute('x2', x.toFixed(1));
-    lb.setAttribute('x', x.toFixed(1));
-    lb.textContent = (key === 'hpf' ? 'HPF ' : 'LPF ') + freq + (on ? '' : ' · off');
+  function marker(k, which, fs, ch) {
+    var x = xOf(fs.freq), y = yOf(dBat(ch, fs.freq)), on = !fs.bypass;
+    var dot = document.getElementById(k + '-' + which + 'Dot');
+    var ln = document.getElementById(k + '-' + which + 'Line');
+    dot.setAttribute('cx', x.toFixed(1)); dot.setAttribute('cy', y.toFixed(1));
+    ln.setAttribute('x1', x.toFixed(1)); ln.setAttribute('x2', x.toFixed(1));
     dot.style.display = on ? '' : 'none';
-    ln.style.opacity  = on ? '.45' : '.12';
-    lb.style.opacity  = on ? '1'   : '.4';
+    ln.style.opacity = on ? '.45' : '.12';
   }
 
-  // ── slider drag (magnifier + fire on pointerup) ─────────────────────────────
-  function attachSlider(key, range, apiPath) {
-    var rail = document.getElementById(key + 'Rail');
-    var mag  = document.getElementById(key + 'Mag');
-    var dragging = false;
-
-    function valueFromX(clientX) {
-      var b = rail.getBoundingClientRect();
-      var frac = clamp((clientX - b.left) / b.width, 0, 1);
-      var raw = range[0] + frac * (range[1] - range[0]);
-      return Math.round(raw / range[2]) * range[2];
-    }
-
-    function updateLocal(val) {
-      // Optimistically update the local state mirror for instant visual feedback
-      if (key === 'master') state.master_gain = val;
-      else if (key === 'sub') state.sub_gain = val;
-      setSlider(key, val, range);
-      // Update mag inline
-      document.getElementById(key + 'MagVal').innerHTML = fmtdB(val) + '<small> dB</small>';
-      pendingSlider[key] = val;
-    }
-
-    rail.addEventListener('pointerdown', function (e) {
-      dragging = true;
-      rail.setPointerCapture(e.pointerId);
-      mag.style.display = 'block';
-      var v = valueFromX(e.clientX);
-      // Safety: a tap on the master rail may only LOWER the volume. To raise
-      // it you must deliberately drag the knob (pointermove handles that).
-      if (key === 'master' && v > state.master_gain) v = state.master_gain;
-      updateLocal(v);
+  // ── tap-to-type editing ───────────────────────────────────────────────────────
+  function editable(id, getValue, commit) {
+    var el = document.getElementById(id);
+    el.addEventListener('click', function () {
+      if (el.querySelector('input')) return;
+      el.innerHTML = '<input class="edit" type="number" inputmode="decimal" step="any" value="' + getValue() + '">';
+      var inp = el.querySelector('input');
+      inp.focus(); inp.select();
+      var done = false;
+      function finish(ok) {
+        if (done) return; done = true;
+        var v = parseFloat(inp.value);
+        if (ok && !isNaN(v)) commit(v); else render();
+      }
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      });
+      inp.addEventListener('blur', function () { finish(true); });
     });
+  }
 
+  // ── relative, half-sensitivity drag (landscape gain bars) ─────────────────────
+  function attachDrag(prefix, range, getValue, commit) {
+    var rail = document.getElementById(prefix + 'Bar');
+    var dragging = false, moved = false, startX = 0, startVal = 0, curVal = 0;
+    rail.addEventListener('pointerdown', function (e) {
+      dragging = true; moved = false; startX = e.clientX;
+      startVal = getValue(); curVal = startVal;
+      rail.setPointerCapture(e.pointerId);
+    });
     rail.addEventListener('pointermove', function (e) {
       if (!dragging) return;
-      updateLocal(valueFromX(e.clientX));
+      moved = true;
+      var w = rail.getBoundingClientRect().width || 1;
+      // value moves at half the finger's proportional travel (no jump-to-touch)
+      var raw = startVal + ((e.clientX - startX) / w) * (range[1] - range[0]) * DRAG_SENS;
+      curVal = clamp(Math.round(raw / range[2]) * range[2], range[0], range[1]);
+      paint(prefix, (curVal - range[0]) / (range[1] - range[0]));
+      var vel = document.getElementById(prefix + 'Val');
+      if (vel) vel.innerHTML = valHTML(fmtdB(curVal), 'dB');
     });
-
-    rail.addEventListener('pointerup', function (e) {
+    function end() {
       if (!dragging) return;
       dragging = false;
-      mag.style.display = 'none';
-      var val = pendingSlider[key];
-      if (val !== null) {
-        api('POST', apiPath, { value: val });
-        pendingSlider[key] = null;
-      }
-    });
-
-    rail.addEventListener('pointercancel', function () {
-      dragging = false;
-      mag.style.display = 'none';
-      pendingSlider[key] = null;
-      render();
-    });
+      if (moved) commit(curVal); else render();
+    }
+    rail.addEventListener('pointerup', end);
+    rail.addEventListener('pointercancel', function () { dragging = false; render(); });
   }
 
-  // ── stepper buttons ─────────────────────────────────────────────────────────
-  function nudgeMaster(delta) {
-    if (!state) return;
-    var v = clamp(Math.round(state.master_gain + delta), R.master[0], R.master[1]);
-    api('POST', '/master-gain', { value: v });
+  // ── steppers / toggles ────────────────────────────────────────────────────────
+  function nudgeMaster(d) {
+    api('POST', '/master-gain', { value: clamp(Math.round(state.master_gain + d), MASTER[0], MASTER[1]) });
   }
-
-  function nudgeSub(delta) {
-    if (!state) return;
-    var v = clamp(Math.round((state.sub_gain + delta) / 0.5) * 0.5, R.sub[0], R.sub[1]);
-    api('POST', '/sub-gain', { value: v });
+  function nudgeGain(k, d) {
+    var v = clamp(Math.round((state[k].gain + d) / 0.5) * 0.5, GAINR[0], GAINR[1]);
+    api('POST', '/' + k + '/gain', { value: v });
   }
-
-  function nudgeHpf(delta) {
-    if (!state) return;
-    var max = state.lpf.freq - GAP;
-    var v = clamp(Math.round((state.hpf.freq + delta) / 5) * 5, R.hpf[0], max);
-    api('POST', '/hpf', { freq: v });
+  function nudgeHpf(k, d) {
+    var max = state[k].lpf.freq - GAP;
+    api('POST', '/' + k + '/hpf', { freq: clamp(Math.round((state[k].hpf.freq + d) / 5) * 5, HPFR[0], max) });
   }
-
-  function nudgeLpf(delta) {
-    if (!state) return;
-    var min = state.hpf.freq + GAP;
-    var v = clamp(Math.round((state.lpf.freq + delta) / 5) * 5, min, R.lpf[1]);
-    api('POST', '/lpf', { freq: v });
+  function nudgeLpf(k, d) {
+    var min = state[k].hpf.freq + GAP;
+    api('POST', '/' + k + '/lpf', { freq: clamp(Math.round((state[k].lpf.freq + d) / 5) * 5, min, LPFR[1]) });
   }
-
-  // ── bypass toggles ──────────────────────────────────────────────────────────
-  function toggleHpf() {
-    if (!state) return;
-    api('POST', '/hpf', { bypass: !state.hpf.bypass });
+  function toggleFilter(k, which) {
+    api('POST', '/' + k + '/' + which, { bypass: !state[k][which].bypass });
   }
+  function toggleMute() { api('POST', '/mute', { value: !state.mute }); }
 
-  function toggleLpf() {
-    if (!state) return;
-    api('POST', '/lpf', { bypass: !state.lpf.bypass });
-  }
-
-  // ── reset two-tap morph ─────────────────────────────────────────────────────
-  var resetArmed = false;
-  var resetTimer = null;
-  var RESET_LABEL = '&#8634; Reset';
-
+  // ── reset two-tap ─────────────────────────────────────────────────────────────
+  var resetArmed = false, resetTimer = null, RESET_LABEL = '&#8634; Reset';
   function handleReset() {
     var btn = document.getElementById('reset');
     if (!resetArmed) {
-      resetArmed = true;
-      btn.classList.add('armed');
-      btn.textContent = 'Tap again to reset';
-      resetTimer = setTimeout(function () {
-        resetArmed = false;
-        btn.classList.remove('armed');
-        btn.innerHTML = RESET_LABEL;
-      }, 3000);
+      resetArmed = true; btn.classList.add('armed'); btn.textContent = 'Tap again';
+      resetTimer = setTimeout(function () { resetArmed = false; btn.classList.remove('armed'); btn.innerHTML = RESET_LABEL; }, 3000);
     } else {
-      clearTimeout(resetTimer);
-      resetArmed = false;
-      btn.classList.remove('armed');
+      clearTimeout(resetTimer); resetArmed = false; btn.classList.remove('armed');
       api('POST', '/reset');
-      btn.classList.add('done');
-      btn.textContent = 'Reset ✓';
-      setTimeout(function () {
-        btn.classList.remove('done');
-        btn.innerHTML = RESET_LABEL;
-      }, 1200);
+      btn.classList.add('done'); btn.textContent = 'Reset ✓';
+      setTimeout(function () { btn.classList.remove('done'); btn.innerHTML = RESET_LABEL; }, 1200);
     }
   }
 
-  // ── wire up DOM ─────────────────────────────────────────────────────────────
+  // ── wire up ───────────────────────────────────────────────────────────────────
   function wireUp() {
-    // Sliders are display-only — no drag/tap handlers attached. All level
-    // changes go through the +/- stepper buttons for safety.
-
-    // Steppers
-    document.getElementById('masterMinus').addEventListener('click', function () { nudgeMaster(-1); });
-    document.getElementById('masterPlus').addEventListener('click',  function () { nudgeMaster(1); });
-    document.getElementById('subMinus').addEventListener('click',    function () { nudgeSub(-0.5); });
-    document.getElementById('subPlus').addEventListener('click',     function () { nudgeSub(0.5); });
-    document.getElementById('hpfMinus').addEventListener('click',    function () { nudgeHpf(-5); });
-    document.getElementById('hpfPlus').addEventListener('click',     function () { nudgeHpf(5); });
-    document.getElementById('lpfMinus').addEventListener('click',    function () { nudgeLpf(-5); });
-    document.getElementById('lpfPlus').addEventListener('click',     function () { nudgeLpf(5); });
-
-    // Bypass switches
-    document.getElementById('hpfSw').addEventListener('click', toggleHpf);
-    document.getElementById('lpfSw').addEventListener('click', toggleLpf);
-
-    // Reset button
+    document.getElementById('muteBtn').addEventListener('click', toggleMute);
     document.getElementById('reset').addEventListener('click', handleReset);
+    Array.prototype.forEach.call(document.querySelectorAll('.segbtn'), function (b) {
+      b.addEventListener('click', function () { setActive(b.getAttribute('data-g')); });
+    });
+    document.getElementById('masterMinus').addEventListener('click', function () { nudgeMaster(-1); });
+    document.getElementById('masterPlus').addEventListener('click', function () { nudgeMaster(1); });
+    editable('masterVal', function () { return state.master_gain; }, function (v) { api('POST', '/master-gain', { value: v }); });
+    attachDrag('master', MASTER, function () { return state.master_gain; }, function (v) { api('POST', '/master-gain', { value: v }); });
+
+    GROUPS.forEach(function (g) {
+      var k = g.key;
+      document.getElementById(k + '-gainMinus').addEventListener('click', function () { nudgeGain(k, -0.5); });
+      document.getElementById(k + '-gainPlus').addEventListener('click', function () { nudgeGain(k, 0.5); });
+      document.getElementById(k + '-hpfMinus').addEventListener('click', function () { nudgeHpf(k, -5); });
+      document.getElementById(k + '-hpfPlus').addEventListener('click', function () { nudgeHpf(k, 5); });
+      document.getElementById(k + '-lpfMinus').addEventListener('click', function () { nudgeLpf(k, -5); });
+      document.getElementById(k + '-lpfPlus').addEventListener('click', function () { nudgeLpf(k, 5); });
+      document.getElementById(k + '-hpfSw').addEventListener('click', function () { toggleFilter(k, 'hpf'); });
+      document.getElementById(k + '-lpfSw').addEventListener('click', function () { toggleFilter(k, 'lpf'); });
+      editable(k + '-gainVal', function () { return state[k].gain; }, function (v) { api('POST', '/' + k + '/gain', { value: v }); });
+      attachDrag(k + '-gain', GAINR, function () { return state[k].gain; }, function (v) { api('POST', '/' + k + '/gain', { value: v }); });
+      editable(k + '-hpfVal', function () { return state[k].hpf.freq; }, function (v) { api('POST', '/' + k + '/hpf', { freq: Math.round(v) }); });
+      editable(k + '-lpfVal', function () { return state[k].lpf.freq; }, function (v) { api('POST', '/' + k + '/lpf', { freq: Math.round(v) }); });
+    });
   }
 
-  // ── init ────────────────────────────────────────────────────────────────────
   async function init() {
+    buildCards();
     wireUp();
+    var saved = null;
+    try { saved = localStorage.getItem('ac_active'); } catch (e) {}
+    setActive(saved === 'mains' || saved === 'subs' ? saved : active);
     await api('GET', '/state');
     await pollHealth();
     setInterval(pollHealth, 5000);
