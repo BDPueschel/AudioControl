@@ -7,10 +7,12 @@ drive every constant in this module.
 """
 import math
 import os
+import re
 import shutil
 import subprocess
 
 from .device import DeviceController
+from .device import MASTER_GAIN_MIN, MASTER_GAIN_MAX
 
 
 # --- Hardware / profile configuration (from the spike) -----------------------
@@ -90,9 +92,27 @@ class MinidspController(DeviceController):
     def __init__(self):
         super().__init__()
         self._bin = _resolve_binary()
-        # Probe connectivity so the server can fall back to the mock if the
-        # CLI or device is unavailable.
-        self._run("status")
+        # `status` confirms connectivity (so the server can fall back to the
+        # mock if unavailable) and gives us the device's current master gain.
+        status = self._run("status")
+        self._sync_on_start(status)
+
+    def _sync_on_start(self, status):
+        """Make the device and the UI agree at startup.
+
+        Master gain has read-back, so seed the UI from the device and never
+        raise volume on boot (only lower it if it exceeds the safety cap).
+        Crossover and sub gain have no read-back, so push the app's state to
+        the device.
+        """
+        m = re.search(r"Gain\(\s*(-?\d+(?:\.\d+)?)\s*\)", status)
+        if m:
+            dev_master = float(m.group(1))
+            target = max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(dev_master)))
+            self._state.master_gain = target
+            if target < dev_master:  # device louder than the cap -> lower it
+                self._run("gain", "--", str(target))
+        self._push_subgain_and_filters()
 
     def _run(self, *args):
         cmd = [self._bin, "--force-kind", FORCE_KIND, *args]
@@ -163,13 +183,17 @@ class MinidspController(DeviceController):
 
     def push_state(self):
         """Write the full in-memory state to the hardware."""
+        self._run("gain", "--", str(self._state.master_gain))
+        self._push_subgain_and_filters()
+        return self.get_state()
+
+    def _push_subgain_and_filters(self):
+        """Write sub gain + both crossover filters to the hardware."""
         s = self._state
-        self._run("gain", "--", str(s.master_gain))
         for out in SUB_OUTPUTS:
             self._run("output", str(out), "gain", "--", str(s.sub_gain))
         self._apply_filter(HPF_INDICES, self._hpf_sections(s.hpf.freq), s.hpf.bypass)
         self._apply_filter(LPF_INDICES, self._lpf_sections(s.lpf.freq), s.lpf.bypass)
-        return self.get_state()
 
     @property
     def device_type(self) -> str:
