@@ -164,6 +164,21 @@
   .lib-add { display: flex; gap: 8px; margin-top: 12px; }
   .lib-in { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: var(--txt); font-size: 13px; padding: 9px 11px; -webkit-appearance: none; }
   .lib-addbtn { flex: none; background: var(--cyan); color: #0d0e10; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; padding: 0 14px; cursor: pointer; }
+  .lib-addbtn:disabled { opacity: .5; }
+
+  /* Playlists (collapsible) + tracks */
+  .lib-section { font-size: 9.5px; letter-spacing: .8px; text-transform: uppercase; color: var(--txt3); margin: 14px 2px 5px; }
+  .pl-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); cursor: pointer; margin-bottom: 4px; }
+  .pl-caret { color: var(--txt3); font-size: 10px; transition: transform .15s; }
+  .pl-caret.open { transform: rotate(90deg); }
+  .pl-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pl-count { font-size: 11px; color: var(--txt3); }
+  .pl-tracks { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px 14px; }
+  .tk-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--bg); cursor: pointer; }
+  .tk-row:active { border-color: var(--cyan); }
+  .tk-meta { flex: 1; min-width: 0; }
+  .tk-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tk-artist { font-size: 11px; color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* Floating value bubble (portrait number drag) */
   .valbubble {
@@ -214,6 +229,10 @@
         <button class="lib-sort" id="libSort">A–Z</button>
       </div>
       <div class="lib-list" id="libList"></div>
+      <div class="lib-add">
+        <input class="lib-in" id="importName" placeholder="Playlist name to import" autocomplete="off">
+        <button class="lib-addbtn" id="importBtn">Import</button>
+      </div>
       <div class="lib-add">
         <input class="lib-in" id="addName" placeholder="Name" autocomplete="off">
         <input class="lib-in" id="addUrl" placeholder="Apple Music link" autocomplete="off">
@@ -488,44 +507,86 @@
   function fmtDB(v) { return fmtdB(v) + ' dB'; }
   function fmtHz(v) { return Math.round(v) + ' Hz'; }
 
-  // ── quick play library ────────────────────────────────────────────────────────
-  var presets = [], libOpen = false, sortAsc = true, presetsLoaded = false;
+  // ── library: imported playlists (collapsible) + quick presets ─────────────────
+  var presets = [], pls = [], libOpen = false, sortAsc = true, libLoaded = false, plOpen = {};
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  async function loadPresets() {
-    try { presets = await (await fetch('/api/quickplay')).json(); presetsLoaded = true; renderLib(); } catch (e) {}
+  function enc(s) { return encodeURIComponent(s); }
+  function has(s, q) { return s.toLowerCase().indexOf(q) >= 0; }
+  function byName(a, b) { var r = a.name.toLowerCase().localeCompare(b.name.toLowerCase()); return sortAsc ? r : -r; }
+
+  async function loadLibrary() {
+    try { presets = await (await fetch('/api/quickplay')).json(); } catch (e) {}
+    try { pls = await (await fetch('/api/playlists')).json(); } catch (e) {}
+    libLoaded = true;
+    renderLib();
   }
+
   function renderLib() {
     var q = (document.getElementById('libSearch').value || '').toLowerCase();
-    var rows = presets.filter(function (p) { return (p.name + ' ' + (p.subtitle || '')).toLowerCase().indexOf(q) >= 0; });
-    rows.sort(function (a, b) { var r = a.name.toLowerCase().localeCompare(b.name.toLowerCase()); return sortAsc ? r : -r; });
-    var list = document.getElementById('libList');
-    if (!rows.length) { list.innerHTML = '<div class="lib-empty">' + (presets.length ? 'No matches' : 'No presets yet — add one below') + '</div>'; return; }
-    list.innerHTML = rows.map(function (p) {
-      return '<div class="lib-row"><div class="lib-tap" data-url="' + encodeURIComponent(p.url) + '" data-name="' + encodeURIComponent(p.name) + '">'
-        + '<div class="lr-name">' + esc(p.name) + '</div>'
-        + (p.subtitle ? '<div class="lr-sub">' + esc(p.subtitle) + '</div>' : '')
-        + '</div><button class="lr-del" data-id="' + esc(p.id) + '">&times;</button></div>';
-    }).join('');
-    Array.prototype.forEach.call(list.querySelectorAll('.lib-tap'), function (el) {
-      el.addEventListener('click', function () { playPreset(decodeURIComponent(el.getAttribute('data-url')), decodeURIComponent(el.getAttribute('data-name'))); });
+    var html = '';
+
+    pls.slice().sort(byName).forEach(function (pl) {
+      var tracks = (pl.tracks || []).filter(function (t) { return !q || has(t.title + ' ' + (t.artist || ''), q); });
+      var nameMatch = !q || has(pl.name, q);
+      if (q && !nameMatch && tracks.length === 0) return;
+      var open = q ? tracks.length > 0 : !!plOpen[pl.name];
+      html += '<div class="pl-head" data-act="pl-toggle" data-pl="' + enc(pl.name) + '">'
+        + '<span class="pl-caret' + (open ? ' open' : '') + '">&#9656;</span>'
+        + '<span class="pl-name">' + esc(pl.name) + '</span>'
+        + '<span class="pl-count">' + (pl.tracks ? pl.tracks.length : 0) + '</span>'
+        + '<button class="lr-del" data-act="pl-del" data-pl="' + enc(pl.name) + '">&times;</button></div>';
+      if (open) {
+        html += '<div class="pl-tracks">' + tracks.map(function (t) {
+          return '<div class="tk-row" data-act="pl-track" data-pl="' + enc(pl.name) + '" data-title="' + enc(t.title) + '">'
+            + '<div class="tk-meta"><div class="tk-title">' + esc(t.title) + '</div>'
+            + (t.artist ? '<div class="tk-artist">' + esc(t.artist) + '</div>' : '') + '</div></div>';
+        }).join('') + '</div>';
+      }
     });
-    Array.prototype.forEach.call(list.querySelectorAll('.lr-del'), function (el) {
-      el.addEventListener('click', function () { deletePreset(el.getAttribute('data-id')); });
-    });
+
+    var fp = presets.filter(function (p) { return !q || has(p.name + ' ' + (p.subtitle || ''), q); }).sort(byName);
+    if (fp.length) {
+      html += '<div class="lib-section">Quick</div>';
+      html += fp.map(function (p) {
+        return '<div class="lib-row"><div class="lib-tap" data-act="preset-play" data-url="' + enc(p.url) + '" data-name="' + enc(p.name) + '">'
+          + '<div class="lr-name">' + esc(p.name) + '</div>'
+          + (p.subtitle ? '<div class="lr-sub">' + esc(p.subtitle) + '</div>' : '')
+          + '</div><button class="lr-del" data-act="preset-del" data-id="' + esc(p.id) + '">&times;</button></div>';
+      }).join('');
+    }
+
+    document.getElementById('libList').innerHTML = html
+      || '<div class="lib-empty">Nothing yet — import a playlist or add a link below</div>';
   }
+
+  function onLibClick(e) {
+    var el = e.target.closest('[data-act]');
+    if (!el) return;
+    var act = el.getAttribute('data-act');
+    if (act === 'pl-toggle') { var n = decodeURIComponent(el.getAttribute('data-pl')); plOpen[n] = !plOpen[n]; renderLib(); }
+    else if (act === 'pl-del') { e.stopPropagation(); deletePlaylist(decodeURIComponent(el.getAttribute('data-pl'))); }
+    else if (act === 'pl-track') { playTrack(decodeURIComponent(el.getAttribute('data-pl')), decodeURIComponent(el.getAttribute('data-title'))); }
+    else if (act === 'preset-play') { playPreset(decodeURIComponent(el.getAttribute('data-url')), decodeURIComponent(el.getAttribute('data-name'))); }
+    else if (act === 'preset-del') { e.stopPropagation(); deletePreset(el.getAttribute('data-id')); }
+  }
+
   function toggleLib() {
     libOpen = !libOpen;
     document.getElementById('libCard').style.display = libOpen ? '' : 'none';
     document.getElementById('npCaret').className = 'np-caret' + (libOpen ? ' open' : '');
-    if (libOpen && !presetsLoaded) loadPresets();
+    if (libOpen && !libLoaded) loadLibrary();
+  }
+
+  async function playTrack(playlist, title) {
+    try { await fetch('/api/playlists/play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playlist: playlist, title: title }) }); } catch (e) {}
+    setTimeout(pollNP, 1800);
   }
   async function playPreset(url, name) {
     try { await fetch('/api/quickplay/play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, title: name }) }); } catch (e) {}
-    setTimeout(pollNP, 1600);
+    setTimeout(pollNP, 1800);
   }
   async function addPreset() {
-    var name = document.getElementById('addName').value.trim();
-    var url = document.getElementById('addUrl').value.trim();
+    var name = document.getElementById('addName').value.trim(), url = document.getElementById('addUrl').value.trim();
     if (!name || !url) return;
     try {
       presets = await (await fetch('/api/quickplay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, url: url }) })).json();
@@ -535,6 +596,21 @@
   }
   async function deletePreset(id) {
     try { presets = await (await fetch('/api/quickplay/' + encodeURIComponent(id), { method: 'DELETE' })).json(); renderLib(); } catch (e) {}
+  }
+  async function importPlaylist() {
+    var name = document.getElementById('importName').value.trim();
+    if (!name) return;
+    var btn = document.getElementById('importBtn'), old = btn.textContent;
+    btn.textContent = 'Importing…'; btn.disabled = true;
+    try {
+      await fetch('/api/playlists/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) });
+      pls = await (await fetch('/api/playlists')).json();
+      document.getElementById('importName').value = ''; plOpen[name] = true; renderLib();
+    } catch (e) {}
+    btn.textContent = old; btn.disabled = false;
+  }
+  async function deletePlaylist(name) {
+    try { await fetch('/api/playlists/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name }) }); pls = await (await fetch('/api/playlists')).json(); renderLib(); } catch (e) {}
   }
 
   // ── relative, half-sensitivity drag (landscape gain bars) ─────────────────────
@@ -617,6 +693,8 @@
       renderLib();
     });
     document.getElementById('addBtn').addEventListener('click', addPreset);
+    document.getElementById('importBtn').addEventListener('click', importPlaylist);
+    document.getElementById('libList').addEventListener('click', onLibClick);
     Array.prototype.forEach.call(document.querySelectorAll('.segbtn'), function (b) {
       b.addEventListener('click', function () { setActive(b.getAttribute('data-g')); });
     });
