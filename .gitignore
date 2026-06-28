@@ -8,3 +8,4 @@ server.log
 server.log.err
 state.json
 presets.json
+playlists.json

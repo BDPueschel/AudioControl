@@ -58,6 +58,15 @@ class PlayRequest(BaseModel):
     title: str | None = None   # song title hint (for exact-track matching)
 
 
+class NameRequest(BaseModel):
+    name: str
+
+
+class PlayTrackRequest(BaseModel):
+    playlist: str
+    title: str
+
+
 class FilterRequest(BaseModel):
     freq: int | None = None
     bypass: bool | None = None

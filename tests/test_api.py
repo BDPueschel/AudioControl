@@ -42,6 +42,12 @@ def test_quickplay_list():
     assert isinstance(r.json(), list)
 
 
+def test_playlists_list():
+    r = client.get("/api/playlists")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+
 def test_quickplay_add_and_delete(tmp_path, monkeypatch):
     monkeypatch.setenv("AUDIOCONTROL_PRESETS_FILE", str(tmp_path / "presets.json"))
     items = client.post("/api/quickplay", json={"name": "Test Album", "url": "https://music.apple.com/x"}).json()

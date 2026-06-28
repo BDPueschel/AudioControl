@@ -4,11 +4,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from .models import (
-    DspState, GainRequest, FilterRequest, MuteRequest, QuickPlayItem, PlayRequest, GROUPS,
+    DspState, GainRequest, FilterRequest, MuteRequest, QuickPlayItem, PlayRequest,
+    NameRequest, PlayTrackRequest, GROUPS,
 )
 from .device import DeviceController
 from . import nowplaying
 from . import quickplay
+from . import playlists
 
 
 def create_device() -> DeviceController:
@@ -118,6 +120,28 @@ def quickplay_delete(pid: str):
 @app.post("/api/quickplay/play")
 def quickplay_play(req: PlayRequest):
     return quickplay.play(req.url, req.title)
+
+
+# --- Playlists (imported, with nested tracks) --------------------------------
+
+@app.get("/api/playlists")
+def playlists_list():
+    return playlists.list_playlists()
+
+
+@app.post("/api/playlists/import")
+def playlists_import(req: NameRequest):
+    return playlists.import_playlist(req.name)
+
+
+@app.post("/api/playlists/delete")
+def playlists_delete(req: NameRequest):
+    return playlists.delete_playlist(req.name)
+
+
+@app.post("/api/playlists/play")
+def playlists_play(req: PlayTrackRequest):
+    return playlists.play_track(req.playlist, req.title)
 
 
 # Serve frontend — only mount if the directory exists.
