@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -5,8 +6,25 @@ from fastapi.responses import FileResponse
 from .models import DspState, GainRequest, FilterRequest
 from .device import DeviceController
 
+
+def create_device() -> DeviceController:
+    """Pick the real miniDSP controller, falling back to the mock.
+
+    Set AUDIOCONTROL_MOCK=1 to force the mock. Otherwise we try to connect to
+    the hardware and fall back to the mock if the CLI or device is unavailable.
+    """
+    if os.environ.get("AUDIOCONTROL_MOCK", "").lower() in ("1", "true", "yes"):
+        return DeviceController()
+    try:
+        from .device_minidsp import MinidspController
+        return MinidspController()
+    except Exception as exc:  # CLI missing, device unplugged, etc.
+        print(f"[AudioControl] real device unavailable ({exc}); using mock.")
+        return DeviceController()
+
+
 app = FastAPI(title="AudioControl")
-device = DeviceController()
+device = create_device()
 
 
 @app.get("/api/health")
