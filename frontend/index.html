@@ -144,6 +144,35 @@
   }
   .npbtn:active { border-color: var(--cyan); color: var(--cyan); }
   .npbig { width: 50px; height: 50px; font-size: 20px; }
+  .np-meta { cursor: pointer; }
+  .np-caret { color: var(--txt3); font-size: 11px; display: inline-block; transition: transform .15s; }
+  .np-caret.open { transform: rotate(180deg); }
+
+  /* Library / Quick Play panel */
+  .lib-bar { display: flex; gap: 10px; margin-bottom: 12px; }
+  .lib-search { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: var(--txt); font-size: 14px; padding: 10px 12px; -webkit-appearance: none; }
+  .lib-sort { flex: none; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: var(--txt2); font-size: 12px; font-weight: 600; padding: 0 14px; cursor: pointer; white-space: nowrap; }
+  .lib-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+  .lib-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+  .lib-tap { flex: 1; min-width: 0; cursor: pointer; }
+  .lib-tap:active .lr-name { color: var(--cyan); }
+  .lr-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lr-sub { font-size: 11px; color: var(--txt3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .lr-del { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--txt3); cursor: pointer; font-size: 14px; }
+  .lr-del:active { color: var(--err); border-color: var(--err); }
+  .lib-empty { color: var(--txt3); font-size: 12px; text-align: center; padding: 16px; }
+  .lib-add { display: flex; gap: 8px; margin-top: 12px; }
+  .lib-in { flex: 1; min-width: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; color: var(--txt); font-size: 13px; padding: 9px 11px; -webkit-appearance: none; }
+  .lib-addbtn { flex: none; background: var(--cyan); color: #0d0e10; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; padding: 0 14px; cursor: pointer; }
+
+  /* Floating value bubble (portrait number drag) */
+  .valbubble {
+    position: fixed; display: none; transform: translate(-50%, -100%); z-index: 50;
+    background: var(--panel2); border: 1px solid var(--cyan); border-radius: 12px;
+    padding: 8px 16px; font-size: 24px; font-weight: 700; color: var(--cyan);
+    font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
+    box-shadow: 0 8px 24px rgba(94,200,216,.25);
+  }
 
   /* Portrait: stack columns, buttons-only (hide level bars) */
   @media (orientation: portrait) {
@@ -168,14 +197,27 @@
 
   <div class="stack">
     <section class="card np" id="npCard" style="display:none">
-      <div class="np-meta">
-        <div class="np-title" id="npTitle">—</div>
+      <div class="np-meta" id="npMeta">
+        <div class="np-title"><span id="npTitle">—</span> <span class="np-caret" id="npCaret">&#9662;</span></div>
         <div class="np-sub" id="npSub"></div>
       </div>
       <div class="np-ctrls">
         <button class="npbtn" id="npPrev" aria-label="previous">&#9198;</button>
         <button class="npbtn npbig" id="npPlay" aria-label="play/pause">&#9199;</button>
         <button class="npbtn" id="npNext" aria-label="next">&#9197;</button>
+      </div>
+    </section>
+
+    <section class="card lib" id="libCard" style="display:none">
+      <div class="lib-bar">
+        <input class="lib-search" id="libSearch" type="search" placeholder="Search Quick Play…" autocomplete="off">
+        <button class="lib-sort" id="libSort">A–Z</button>
+      </div>
+      <div class="lib-list" id="libList"></div>
+      <div class="lib-add">
+        <input class="lib-in" id="addName" placeholder="Name" autocomplete="off">
+        <input class="lib-in" id="addUrl" placeholder="Apple Music link" autocomplete="off">
+        <button class="lib-addbtn" id="addBtn">+ Add</button>
       </div>
     </section>
 
@@ -384,26 +426,115 @@
     ln.style.opacity = on ? '.45' : '.12';
   }
 
-  // ── tap-to-type editing ───────────────────────────────────────────────────────
-  function editable(id, getValue, commit) {
-    var el = document.getElementById(id);
-    el.addEventListener('click', function () {
-      if (el.querySelector('input')) return;
-      el.innerHTML = '<input class="edit" type="number" inputmode="decimal" step="any" value="' + getValue() + '">';
-      var inp = el.querySelector('input');
-      inp.focus(); inp.select();
-      var done = false;
-      function finish(ok) {
-        if (done) return; done = true;
-        var v = parseFloat(inp.value);
-        if (ok && !isNaN(v)) commit(v); else render();
-      }
-      inp.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-      });
-      inp.addEventListener('blur', function () { finish(true); });
+  // ── value editing: tap to type; in portrait, drag the number to adjust ─────────
+  var _bubble = null, PX_PER_STEP = 12;
+  function portrait() { return window.matchMedia('(orientation: portrait)').matches; }
+  function showBubble(el, text) {
+    if (!_bubble) { _bubble = document.createElement('div'); _bubble.className = 'valbubble'; document.body.appendChild(_bubble); }
+    _bubble.textContent = text; _bubble.style.display = 'block';
+    var r = el.getBoundingClientRect();
+    _bubble.style.left = (r.left + r.width / 2) + 'px';
+    _bubble.style.top = (r.top - 6) + 'px';
+  }
+  function hideBubble() { if (_bubble) _bubble.style.display = 'none'; }
+
+  function openEditor(el, getValue, commit) {
+    if (el.querySelector('input')) return;
+    el.innerHTML = '<input class="edit" type="number" inputmode="decimal" step="any" value="' + getValue() + '">';
+    var inp = el.querySelector('input');
+    inp.focus(); inp.select();
+    var done = false;
+    function finish(ok) {
+      if (done) return; done = true;
+      var v = parseFloat(inp.value);
+      if (ok && !isNaN(v)) commit(v); else render();
+    }
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
     });
+    inp.addEventListener('blur', function () { finish(true); });
+  }
+
+  function bindValue(id, range, getValue, commit, fmt) {
+    var el = document.getElementById(id);
+    var dragging = false, moved = false, startX = 0, startVal = 0, curVal = 0, justDragged = false;
+    el.addEventListener('pointerdown', function (e) {
+      if (!portrait()) return;   // landscape: tap -> type; level bars handle drag
+      dragging = true; moved = false; startX = e.clientX; startVal = getValue(); curVal = startVal;
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    el.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      var dx = e.clientX - startX;
+      if (!moved && Math.abs(dx) < 4) return;
+      moved = true;
+      var steps = Math.round(dx / PX_PER_STEP);
+      curVal = clamp(Math.round((startVal + steps * range[2]) / range[2]) * range[2], range[0], range[1]);
+      showBubble(el, fmt(curVal));
+    });
+    el.addEventListener('pointerup', function () {
+      if (!dragging) return;
+      dragging = false; hideBubble();
+      if (moved) { justDragged = true; commit(curVal); }
+    });
+    el.addEventListener('pointercancel', function () { dragging = false; hideBubble(); });
+    el.addEventListener('click', function () {
+      if (justDragged) { justDragged = false; return; }   // a drag, not a tap
+      openEditor(el, getValue, commit);
+    });
+  }
+
+  function fmtDB(v) { return fmtdB(v) + ' dB'; }
+  function fmtHz(v) { return Math.round(v) + ' Hz'; }
+
+  // ── quick play library ────────────────────────────────────────────────────────
+  var presets = [], libOpen = false, sortAsc = true, presetsLoaded = false;
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  async function loadPresets() {
+    try { presets = await (await fetch('/api/quickplay')).json(); presetsLoaded = true; renderLib(); } catch (e) {}
+  }
+  function renderLib() {
+    var q = (document.getElementById('libSearch').value || '').toLowerCase();
+    var rows = presets.filter(function (p) { return (p.name + ' ' + (p.subtitle || '')).toLowerCase().indexOf(q) >= 0; });
+    rows.sort(function (a, b) { var r = a.name.toLowerCase().localeCompare(b.name.toLowerCase()); return sortAsc ? r : -r; });
+    var list = document.getElementById('libList');
+    if (!rows.length) { list.innerHTML = '<div class="lib-empty">' + (presets.length ? 'No matches' : 'No presets yet — add one below') + '</div>'; return; }
+    list.innerHTML = rows.map(function (p) {
+      return '<div class="lib-row"><div class="lib-tap" data-url="' + encodeURIComponent(p.url) + '">'
+        + '<div class="lr-name">' + esc(p.name) + '</div>'
+        + (p.subtitle ? '<div class="lr-sub">' + esc(p.subtitle) + '</div>' : '')
+        + '</div><button class="lr-del" data-id="' + esc(p.id) + '">&times;</button></div>';
+    }).join('');
+    Array.prototype.forEach.call(list.querySelectorAll('.lib-tap'), function (el) {
+      el.addEventListener('click', function () { playPreset(decodeURIComponent(el.getAttribute('data-url'))); });
+    });
+    Array.prototype.forEach.call(list.querySelectorAll('.lr-del'), function (el) {
+      el.addEventListener('click', function () { deletePreset(el.getAttribute('data-id')); });
+    });
+  }
+  function toggleLib() {
+    libOpen = !libOpen;
+    document.getElementById('libCard').style.display = libOpen ? '' : 'none';
+    document.getElementById('npCaret').className = 'np-caret' + (libOpen ? ' open' : '');
+    if (libOpen && !presetsLoaded) loadPresets();
+  }
+  async function playPreset(url) {
+    try { await fetch('/api/quickplay/play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) }); } catch (e) {}
+    setTimeout(pollNP, 1600);
+  }
+  async function addPreset() {
+    var name = document.getElementById('addName').value.trim();
+    var url = document.getElementById('addUrl').value.trim();
+    if (!name || !url) return;
+    try {
+      presets = await (await fetch('/api/quickplay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name, url: url }) })).json();
+      document.getElementById('addName').value = ''; document.getElementById('addUrl').value = '';
+      renderLib();
+    } catch (e) {}
+  }
+  async function deletePreset(id) {
+    try { presets = await (await fetch('/api/quickplay/' + encodeURIComponent(id), { method: 'DELETE' })).json(); renderLib(); } catch (e) {}
   }
 
   // ── relative, half-sensitivity drag (landscape gain bars) ─────────────────────
@@ -478,12 +609,20 @@
     document.getElementById('npPrev').addEventListener('click', function () { npAction('previous'); });
     document.getElementById('npPlay').addEventListener('click', function () { npAction('playpause'); });
     document.getElementById('npNext').addEventListener('click', function () { npAction('next'); });
+    document.getElementById('npMeta').addEventListener('click', toggleLib);
+    document.getElementById('libSearch').addEventListener('input', renderLib);
+    document.getElementById('libSort').addEventListener('click', function () {
+      sortAsc = !sortAsc;
+      document.getElementById('libSort').textContent = sortAsc ? 'A–Z' : 'Z–A';
+      renderLib();
+    });
+    document.getElementById('addBtn').addEventListener('click', addPreset);
     Array.prototype.forEach.call(document.querySelectorAll('.segbtn'), function (b) {
       b.addEventListener('click', function () { setActive(b.getAttribute('data-g')); });
     });
     document.getElementById('masterMinus').addEventListener('click', function () { nudgeMaster(-1); });
     document.getElementById('masterPlus').addEventListener('click', function () { nudgeMaster(1); });
-    editable('masterVal', function () { return state.master_gain; }, function (v) { api('POST', '/master-gain', { value: v }); });
+    bindValue('masterVal', MASTER, function () { return state.master_gain; }, function (v) { api('POST', '/master-gain', { value: v }); }, fmtDB);
     attachDrag('master', MASTER, function () { return state.master_gain; }, function (v) { api('POST', '/master-gain', { value: v }); });
 
     GROUPS.forEach(function (g) {
@@ -496,10 +635,10 @@
       document.getElementById(k + '-lpfPlus').addEventListener('click', function () { nudgeLpf(k, 5); });
       document.getElementById(k + '-hpfSw').addEventListener('click', function () { toggleFilter(k, 'hpf'); });
       document.getElementById(k + '-lpfSw').addEventListener('click', function () { toggleFilter(k, 'lpf'); });
-      editable(k + '-gainVal', function () { return state[k].gain; }, function (v) { api('POST', '/' + k + '/gain', { value: v }); });
+      bindValue(k + '-gainVal', GAINR, function () { return state[k].gain; }, function (v) { api('POST', '/' + k + '/gain', { value: v }); }, fmtDB);
       attachDrag(k + '-gain', GAINR, function () { return state[k].gain; }, function (v) { api('POST', '/' + k + '/gain', { value: v }); });
-      editable(k + '-hpfVal', function () { return state[k].hpf.freq; }, function (v) { api('POST', '/' + k + '/hpf', { freq: Math.round(v) }); });
-      editable(k + '-lpfVal', function () { return state[k].lpf.freq; }, function (v) { api('POST', '/' + k + '/lpf', { freq: Math.round(v) }); });
+      bindValue(k + '-hpfVal', HPFR, function () { return state[k].hpf.freq; }, function (v) { api('POST', '/' + k + '/hpf', { freq: Math.round(v) }); }, fmtHz);
+      bindValue(k + '-lpfVal', LPFR, function () { return state[k].lpf.freq; }, function (v) { api('POST', '/' + k + '/lpf', { freq: Math.round(v) }); }, fmtHz);
     });
   }
 
