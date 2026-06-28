@@ -55,6 +55,7 @@ class QuickPlayItem(BaseModel):
 
 class PlayRequest(BaseModel):
     url: str
+    title: str | None = None   # song title hint (for exact-track matching)
 
 
 class FilterRequest(BaseModel):

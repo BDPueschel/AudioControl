@@ -81,25 +81,30 @@ def _to_deeplink(url: str) -> str:
     return u
 
 
-def play(url: str) -> dict:
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+def play(url: str, title: str = None) -> dict:
     deeplink = _to_deeplink(url)
+    args = [sys.executable, os.path.abspath(__file__), "--play", deeplink]
+    if title:
+        args.append(title)
     try:
-        r = subprocess.run(
-            [sys.executable, os.path.abspath(__file__), "--play", deeplink],
-            capture_output=True, text=True, timeout=20,
-        )
+        r = subprocess.run(args, capture_output=True, text=True, timeout=20)
         return {"ok": r.returncode == 0, "detail": (r.stdout or r.stderr).strip()[-300:]}
     except Exception as e:
         return {"ok": False, "detail": str(e)}
 
 
-def _play_native(url: str) -> int:
-    """Runs in the subprocess: navigate via deep link, then start playback.
+def _play_native(url: str, title: str = None) -> int:
+    """Navigate via deep link, then start playback.
 
-    Song links (/song/<slug>/<id>) play that exact track by double-clicking its
-    row (Invoke only selects; double-click plays). Album/playlist links invoke
-    the page's main Play button. Song links fall back to main Play if the row
-    isn't found.
+    For a specific track, double-click its row (Invoke only selects). The match
+    target is the title hint (the preset name) if given, else the /song/ slug;
+    this makes the common ?i=<id> link form work too (it has no slug). Album/
+    playlist links invoke the page's main Play button, which is also the
+    fallback if the track row can't be matched.
     """
     import uiautomation as auto
 
@@ -113,23 +118,29 @@ def _play_native(url: str) -> int:
     except Exception:
         pass
 
-    # Song link: find the track row by the URL slug and double-click to play it.
-    m = re.search(r"/song/([^/?]+)", url)
-    if m:
-        target = m.group(1).replace("-", " ").lower()
+    is_song = ("/song/" in url) or bool(re.search(r"[?&]i=", url))
+    target = None
+    if title and title.strip():
+        target = _norm(title)
+    else:
+        m = re.search(r"/song/([^/?]+)", url)
+        if m:
+            target = _norm(m.group(1))
+
+    if is_song and target:
         deadline = time.time() + 8
         while time.time() < deadline:
             for c, _d in auto.WalkControl(win, maxDepth=12):
                 if c.ControlTypeName == "ListItemControl" and c.Name:
-                    nm = c.Name.lower()
+                    nm = _norm(c.Name)
                     if target in nm and ("track" in nm or "minute" in nm):
                         c.DoubleClick(simulateMove=False)
                         print("played track:", c.Name)
                         return 0
             time.sleep(0.4)
-        print("track row not found; falling back to album Play")
+        print("track row not found; falling back to Play")
 
-    # Album/playlist (or song fallback): invoke the page's main Play button.
+    # Album/playlist (or fallback): invoke the page's main Play button.
     deadline = time.time() + 8
     while time.time() < deadline:
         btn = win.ButtonControl(Name="Play")
@@ -148,4 +159,5 @@ def _play_native(url: str) -> int:
 
 if __name__ == "__main__":
     if len(sys.argv) >= 3 and sys.argv[1] == "--play":
-        sys.exit(_play_native(sys.argv[2]))
+        _title = sys.argv[3] if len(sys.argv) >= 4 else None
+        sys.exit(_play_native(sys.argv[2], _title))

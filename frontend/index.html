@@ -501,13 +501,13 @@
     var list = document.getElementById('libList');
     if (!rows.length) { list.innerHTML = '<div class="lib-empty">' + (presets.length ? 'No matches' : 'No presets yet — add one below') + '</div>'; return; }
     list.innerHTML = rows.map(function (p) {
-      return '<div class="lib-row"><div class="lib-tap" data-url="' + encodeURIComponent(p.url) + '">'
+      return '<div class="lib-row"><div class="lib-tap" data-url="' + encodeURIComponent(p.url) + '" data-name="' + encodeURIComponent(p.name) + '">'
         + '<div class="lr-name">' + esc(p.name) + '</div>'
         + (p.subtitle ? '<div class="lr-sub">' + esc(p.subtitle) + '</div>' : '')
         + '</div><button class="lr-del" data-id="' + esc(p.id) + '">&times;</button></div>';
     }).join('');
     Array.prototype.forEach.call(list.querySelectorAll('.lib-tap'), function (el) {
-      el.addEventListener('click', function () { playPreset(decodeURIComponent(el.getAttribute('data-url'))); });
+      el.addEventListener('click', function () { playPreset(decodeURIComponent(el.getAttribute('data-url')), decodeURIComponent(el.getAttribute('data-name'))); });
     });
     Array.prototype.forEach.call(list.querySelectorAll('.lr-del'), function (el) {
       el.addEventListener('click', function () { deletePreset(el.getAttribute('data-id')); });
@@ -519,8 +519,8 @@
     document.getElementById('npCaret').className = 'np-caret' + (libOpen ? ' open' : '');
     if (libOpen && !presetsLoaded) loadPresets();
   }
-  async function playPreset(url) {
-    try { await fetch('/api/quickplay/play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) }); } catch (e) {}
+  async function playPreset(url, name) {
+    try { await fetch('/api/quickplay/play', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url, title: name }) }); } catch (e) {}
     setTimeout(pollNP, 1600);
   }
   async function addPreset() {

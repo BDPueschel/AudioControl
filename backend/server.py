@@ -117,7 +117,7 @@ def quickplay_delete(pid: str):
 
 @app.post("/api/quickplay/play")
 def quickplay_play(req: PlayRequest):
-    return quickplay.play(req.url)
+    return quickplay.play(req.url, req.title)
 
 
 # Serve frontend — only mount if the directory exists.
