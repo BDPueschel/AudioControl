@@ -94,7 +94,13 @@ def play(url: str) -> dict:
 
 
 def _play_native(url: str) -> int:
-    """Runs in the subprocess: navigate via deep link, then invoke Play."""
+    """Runs in the subprocess: navigate via deep link, then start playback.
+
+    Song links (/song/<slug>/<id>) play that exact track by double-clicking its
+    row (Invoke only selects; double-click plays). Album/playlist links invoke
+    the page's main Play button. Song links fall back to main Play if the row
+    isn't found.
+    """
     import uiautomation as auto
 
     os.startfile(url)
@@ -107,6 +113,23 @@ def _play_native(url: str) -> int:
     except Exception:
         pass
 
+    # Song link: find the track row by the URL slug and double-click to play it.
+    m = re.search(r"/song/([^/?]+)", url)
+    if m:
+        target = m.group(1).replace("-", " ").lower()
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            for c, _d in auto.WalkControl(win, maxDepth=12):
+                if c.ControlTypeName == "ListItemControl" and c.Name:
+                    nm = c.Name.lower()
+                    if target in nm and ("track" in nm or "minute" in nm):
+                        c.DoubleClick(simulateMove=False)
+                        print("played track:", c.Name)
+                        return 0
+            time.sleep(0.4)
+        print("track row not found; falling back to album Play")
+
+    # Album/playlist (or song fallback): invoke the page's main Play button.
     deadline = time.time() + 8
     while time.time() < deadline:
         btn = win.ButtonControl(Name="Play")

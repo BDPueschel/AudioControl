@@ -8,3 +8,5 @@ winrt-Windows.Media.Control; sys_platform == "win32"
 winrt-Windows.Foundation; sys_platform == "win32"
 winrt-Windows.Foundation.Collections; sys_platform == "win32"
 winrt-Windows.Storage.Streams; sys_platform == "win32"
+# Quick Play deep-link -> native "Play" via UIAutomation (Windows only).
+uiautomation; sys_platform == "win32"
