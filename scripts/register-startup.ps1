@@ -20,7 +20,7 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
 
 Register-ScheduledTask -TaskName 'MusicStackStartup' `
     -Action $action -Trigger $trigger -Settings $settings `
-    -Description 'Launches the music stack (AudioControl server, Apple Music, miniDSP Device Console, Synesthesia) at logon.' `
+    -Description 'Launches the music stack (AudioControl server, Qobuz, miniDSP Device Console, Synesthesia) at logon.' `
     -Force | Out-Null
 
 Write-Host 'Registered scheduled task: MusicStackStartup (runs ~15s after logon).'

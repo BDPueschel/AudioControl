@@ -3,7 +3,7 @@
 
     Launches the laptop "music stack" at logon:
       1. AudioControl server (headless, controls the miniDSP)
-      2. Apple Music
+      2. Qobuz
       3. miniDSP Device Console
       4. Synesthesia
 
@@ -17,7 +17,7 @@
 $ErrorActionPreference = 'Continue'
 
 # --- configuration (edit paths here if anything moves) ----------------------
-$AppleMusicAUMID = 'AppleInc.AppleMusicWin_nzyj5cx40ttqa!App'
+$Qobuz           = "$env:LOCALAPPDATA\Qobuz\Qobuz.exe"
 $DeviceConsole   = "$env:LOCALAPPDATA\Programs\minidsp-device-console\MiniDSP Device Console.exe"
 $Synesthesia     = "${env:ProgramFiles(x86)}\Synesthesia\Synesthesia.exe"
 $AudioControlDir = 'C:\Users\Brian\Documents\CodeProjects\AudioControl'
@@ -44,9 +44,10 @@ Launch 'AudioControl server' {
     }
 }
 
-# 2) Apple Music (Microsoft Store app)
-Launch 'Apple Music' {
-    Start-Process "shell:AppsFolder\$AppleMusicAUMID"
+# 2) Qobuz
+Launch 'Qobuz' {
+    if (Test-Path $Qobuz) { Start-Process $Qobuz }
+    else { Write-Host "       not found at $Qobuz" }
 }
 
 # 3) miniDSP Device Console

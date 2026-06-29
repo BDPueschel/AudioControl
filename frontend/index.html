@@ -211,34 +211,8 @@
   </div>
 
   <div class="stack">
-    <section class="card np" id="npCard" style="display:none">
-      <div class="np-meta" id="npMeta">
-        <div class="np-title"><span id="npTitle">—</span> <span class="np-caret" id="npCaret">&#9662;</span></div>
-        <div class="np-sub" id="npSub"></div>
-      </div>
-      <div class="np-ctrls">
-        <button class="npbtn" id="npPrev" aria-label="previous">&#9198;</button>
-        <button class="npbtn npbig" id="npPlay" aria-label="play/pause">&#9199;</button>
-        <button class="npbtn" id="npNext" aria-label="next">&#9197;</button>
-      </div>
-    </section>
-
-    <section class="card lib" id="libCard" style="display:none">
-      <div class="lib-bar">
-        <input class="lib-search" id="libSearch" type="search" placeholder="Search Quick Play…" autocomplete="off">
-        <button class="lib-sort" id="libSort">A–Z</button>
-      </div>
-      <div class="lib-list" id="libList"></div>
-      <div class="lib-add">
-        <input class="lib-in" id="importName" placeholder="Playlist name to import" autocomplete="off">
-        <button class="lib-addbtn" id="importBtn">Import</button>
-      </div>
-      <div class="lib-add">
-        <input class="lib-in" id="addName" placeholder="Name" autocomplete="off">
-        <input class="lib-in" id="addUrl" placeholder="Apple Music link" autocomplete="off">
-        <button class="lib-addbtn" id="addBtn">+ Add</button>
-      </div>
-    </section>
+    <!-- Apple Music control (Now Playing / SMTC + Quick Play + playlists) is
+         detached/deprecated as of the move to Qobuz. JS + backend kept dormant. -->
 
     <section class="card">
       <div class="card-h"><span class="card-title">Master</span><span class="card-tag">volume</span></div>
@@ -682,19 +656,6 @@
   function wireUp() {
     document.getElementById('muteBtn').addEventListener('click', toggleMute);
     document.getElementById('reset').addEventListener('click', handleReset);
-    document.getElementById('npPrev').addEventListener('click', function () { npAction('previous'); });
-    document.getElementById('npPlay').addEventListener('click', function () { npAction('playpause'); });
-    document.getElementById('npNext').addEventListener('click', function () { npAction('next'); });
-    document.getElementById('npMeta').addEventListener('click', toggleLib);
-    document.getElementById('libSearch').addEventListener('input', renderLib);
-    document.getElementById('libSort').addEventListener('click', function () {
-      sortAsc = !sortAsc;
-      document.getElementById('libSort').textContent = sortAsc ? 'A–Z' : 'Z–A';
-      renderLib();
-    });
-    document.getElementById('addBtn').addEventListener('click', addPreset);
-    document.getElementById('importBtn').addEventListener('click', importPlaylist);
-    document.getElementById('libList').addEventListener('click', onLibClick);
     Array.prototype.forEach.call(document.querySelectorAll('.segbtn'), function (b) {
       b.addEventListener('click', function () { setActive(b.getAttribute('data-g')); });
     });
@@ -729,8 +690,6 @@
     await api('GET', '/state');
     await pollHealth();
     setInterval(pollHealth, 5000);
-    pollNP();
-    setInterval(pollNP, 2500);
   }
 
   document.addEventListener('DOMContentLoaded', init);
