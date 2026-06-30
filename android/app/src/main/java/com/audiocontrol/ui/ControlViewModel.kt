@@ -113,6 +113,21 @@ class ControlViewModel(
     fun nudgeLpf(group: String, d: Int) = ch(group)?.let { c -> applyMutation { repo.lpf(group, clampLpf(c.lpf.freq + d, c.hpf.freq), null, null) } } ?: Unit
     fun setHpfFreq(group: String, v: Int) = ch(group)?.let { c -> applyMutation { repo.hpf(group, clampHpf(v, c.lpf.freq), null, null) } } ?: Unit
     fun setLpfFreq(group: String, v: Int) = ch(group)?.let { c -> applyMutation { repo.lpf(group, clampLpf(v, c.hpf.freq), null, null) } } ?: Unit
+
+    /** Drag the HPF node on the curve. Routes through [coalesced] so rapid drags never queue
+     *  more than one outstanding request — the latest pending value always wins. */
+    fun dragHpfFreq(group: String, freq: Int, release: Boolean) {
+        val c = ch(group) ?: return
+        val clamped = clampHpf(freq, c.lpf.freq)
+        coalesced { repo.hpf(group, clamped, null, null) }
+    }
+
+    /** Drag the LPF node on the curve. See [dragHpfFreq] for coalescing semantics. */
+    fun dragLpfFreq(group: String, freq: Int, release: Boolean) {
+        val c = ch(group) ?: return
+        val clamped = clampLpf(freq, c.hpf.freq)
+        coalesced { repo.lpf(group, clamped, null, null) }
+    }
     fun toggleHpf(group: String) = ch(group)?.let { c -> applyMutation { repo.hpf(group, null, !c.hpf.bypass, null) } } ?: Unit
     fun toggleLpf(group: String) = ch(group)?.let { c -> applyMutation { repo.lpf(group, null, !c.lpf.bypass, null) } } ?: Unit
     fun setHpfType(group: String, t: FilterType) {

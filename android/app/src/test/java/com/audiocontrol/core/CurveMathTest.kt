@@ -31,4 +31,20 @@ class CurveMathTest {
     @Test fun curvePoints_count() {
         assertThat(curvePoints(hpf, lpf, 160)).hasSize(161)
     }
+
+    // freqAtXNorm — inverse of curveXNorm
+    @Test fun freqAtXNorm_endpoints() {
+        assertThat(abs(freqAtXNorm(0.0) - 20.0)).isLessThan(1e-9)
+        assertThat(abs(freqAtXNorm(1.0) - 640.0)).isLessThan(1e-6)
+    }
+    @Test fun freqAtXNorm_roundTrip() {
+        val f = 45.0
+        assertThat(abs(freqAtXNorm(curveXNorm(f)) - f)).isLessThan(1e-9)
+    }
+    @Test fun freqAtXNorm_clampsBelow() {
+        assertThat(abs(freqAtXNorm(-1.0) - 20.0)).isLessThan(1e-9)
+    }
+    @Test fun freqAtXNorm_clampsAbove() {
+        assertThat(abs(freqAtXNorm(2.0) - 640.0)).isLessThan(1e-6)
+    }
 }

@@ -25,3 +25,6 @@ fun curvePoints(hpf: FilterCurveSpec, lpf: FilterCurveSpec, n: Int = 160): List<
         val f = 20.0 * 32.0.pow(frac)
         frac to curveYNorm(curveDb(hpf, lpf, f))
     }
+
+/** Inverse of [curveXNorm]: maps normalised x in [0,1] back to frequency in Hz (20–640 Hz). */
+fun freqAtXNorm(xNorm: Double): Double = 20.0 * 32.0.pow(xNorm.coerceIn(0.0, 1.0))

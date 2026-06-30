@@ -96,6 +96,8 @@ fun CrossoverCard(group: String, ch: ChannelState, vm: ControlViewModel) {
         PassbandCurve(
             hpf = FilterCurveSpec(ch.hpf.freq, ch.hpf.bypass, ch.hpf.filterType),
             lpf = FilterCurveSpec(ch.lpf.freq, ch.lpf.bypass, ch.lpf.filterType),
+            onHpfDrag = { freq, release -> vm.dragHpfFreq(group, freq, release) },
+            onLpfDrag = { freq, release -> vm.dragLpfFreq(group, freq, release) },
         )
     }
 }
