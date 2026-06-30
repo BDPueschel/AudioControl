@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -19,9 +20,28 @@ import com.audiocontrol.ui.theme.accentFor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ThemeSheet(hue: Float, onHueChange: (Float) -> Unit, onDismiss: () -> Unit) {
+fun ThemeSheet(
+    hue: Float,
+    onHueChange: (Float) -> Unit,
+    oledBlack: Boolean,
+    onOledToggle: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(20.dp).padding(bottom = 24.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("OLED BLACK", fontSize = 11.sp, color = Color(Ink.txt3))
+                Switch(
+                    checked = oledBlack,
+                    onCheckedChange = onOledToggle,
+                    colors = SwitchDefaults.colors(checkedTrackColor = accentFor(hue)),
+                )
+            }
+            Spacer(Modifier.height(16.dp))
             Text("ACCENT", fontSize = 11.sp, color = Color(Ink.txt3))
             Spacer(Modifier.height(12.dp))
             Slider(

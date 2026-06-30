@@ -24,6 +24,7 @@ fun ControlScreen(
     settings: Settings,
     onHostChange: (String) -> Unit,
     onHueChange: (Float) -> Unit,
+    onOledChange: (Boolean) -> Unit,
     selectGroup: (String) -> Unit,
 ) {
     val ui by vm.ui.collectAsState()
@@ -79,7 +80,7 @@ fun ControlScreen(
         }
     }
 
-    if (showTheme) ThemeSheet(settings.accentHue, onHueChange) { showTheme = false }
+    if (showTheme) ThemeSheet(settings.accentHue, onHueChange, settings.oledBlack, onOledChange) { showTheme = false }
     if (showSettings) SettingsSheet(settings.host, onHostChange) { showSettings = false }
 }
 

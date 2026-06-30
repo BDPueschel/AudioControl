@@ -15,7 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewModelScope
 import com.audiocontrol.ui.ControlScreen
 import com.audiocontrol.ui.theme.AppTheme
-import com.audiocontrol.ui.theme.Ink
+import com.audiocontrol.ui.theme.LocalInkBg
 import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
@@ -28,13 +28,14 @@ class MainActivity : ComponentActivity() {
         container.vm.start()
         setContent {
             val settings by container.settings.collectAsState()
-            AppTheme(accentHue = settings.accentHue) {
-                Surface(Modifier.fillMaxSize().background(Color(Ink.bg))) {
+            AppTheme(accentHue = settings.accentHue, oledBlack = settings.oledBlack) {
+                Surface(Modifier.fillMaxSize().background(Color(LocalInkBg.current))) {
                     ControlScreen(
                         vm = container.vm,
                         settings = settings,
                         onHostChange = container::setHost,
                         onHueChange = container::setHue,
+                        onOledChange = container::setOled,
                         selectGroup = container.vm::selectGroup,
                     )
                 }

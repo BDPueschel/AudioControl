@@ -14,4 +14,7 @@ class SettingsDefaultsTest {
     @Test fun baseUrl_wrapsHost() {
         assertThat(baseUrl("host:8080")).isEqualTo("http://host:8080/")
     }
+    @Test fun oledBlackDefault_isFalse() {
+        assertThat(SettingsDefaults.OLED_BLACK).isFalse()
+    }
 }

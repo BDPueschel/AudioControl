@@ -7,12 +7,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 @Composable
-fun AppTheme(accentHue: Float = 189f, content: @Composable () -> Unit) {
+fun AppTheme(accentHue: Float = 189f, oledBlack: Boolean = false, content: @Composable () -> Unit) {
     val accent = accentFor(accentHue)
-    CompositionLocalProvider(LocalAccent provides accent) {
+    val bg: Long = if (oledBlack) 0xFF000000L else Ink.bg
+    CompositionLocalProvider(LocalAccent provides accent, LocalInkBg provides bg) {
         MaterialTheme(
             colorScheme = darkColorScheme(
-                background = Color(Ink.bg),
+                background = Color(bg),
                 surface = Color(Ink.panel),
                 surfaceVariant = Color(Ink.panel2),
                 primary = accent,

@@ -24,6 +24,7 @@ import androidx.compose.ui.window.PopupProperties
 import com.audiocontrol.ui.ConnState
 import com.audiocontrol.ui.theme.Ink
 import com.audiocontrol.ui.theme.LocalAccent
+import com.audiocontrol.ui.theme.LocalInkBg
 import kotlinx.coroutines.delay
 
 @Composable
@@ -33,8 +34,9 @@ fun ControlTopBar(
     onOpenSettings: () -> Unit,
 ) {
     val accent = LocalAccent.current
+    val inkBg = LocalInkBg.current
     Row(
-        Modifier.fillMaxWidth().background(Color(Ink.bg)).padding(horizontal = 18.dp, vertical = 6.dp),
+        Modifier.fillMaxWidth().background(Color(inkBg)).padding(horizontal = 18.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Left group — dot + status label only (title removed)

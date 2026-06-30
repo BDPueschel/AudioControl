@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import com.audiocontrol.core.*
 import com.audiocontrol.ui.theme.Ink
 import com.audiocontrol.ui.theme.LocalAccent
+import com.audiocontrol.ui.theme.LocalInkBg
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -43,6 +44,7 @@ fun PassbandCurve(
     onLpfDrag: ((Int, Boolean) -> Unit)? = null,
 ) {
     val accent = LocalAccent.current
+    val inkBg = LocalInkBg.current
     val density = LocalDensity.current
 
     // rememberUpdatedState so the pointerInput(Unit) closure always reads the latest values
@@ -91,7 +93,7 @@ fun PassbandCurve(
         "${hpf.type.slopeDbPerOct} / ${lpf.type.slopeDbPerOct} dB/oct"
 
     Column(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Color(Ink.bg))
+        modifier.clip(RoundedCornerShape(12.dp)).background(Color(inkBg))
             .border(1.dp, Color(Ink.line), RoundedCornerShape(12.dp)).padding(12.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -190,7 +192,7 @@ fun PassbandCurve(
                     val y = (curveYNorm(curveDb(hpf, lpf, fs.freq.toDouble())) * h).toFloat()
                     drawLine(accent.copy(alpha = 0.45f), Offset(x, 0f), Offset(x, h), pathEffect = dash)
                     drawCircle(accent, radius = 11f, center = Offset(x, y))
-                    drawCircle(Color(Ink.bg), radius = 6f, center = Offset(x, y))
+                    drawCircle(Color(inkBg), radius = 6f, center = Offset(x, y))
                 }
             }
 

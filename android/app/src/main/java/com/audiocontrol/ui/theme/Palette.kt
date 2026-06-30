@@ -41,3 +41,6 @@ fun accentFor(hue: Float): Color = Color(hslToArgb(hue, ACCENT_S, ACCENT_L))
 val ACCENT_PRESET_HUES: List<Float> = listOf(189f, 16f, 145f, 280f, 45f)
 
 val LocalAccent = compositionLocalOf { accentFor(189f) }
+
+/** Themeable background token — swapped to pure black in OLED mode. Stored as Long ARGB. */
+val LocalInkBg = compositionLocalOf<Long> { Ink.bg }

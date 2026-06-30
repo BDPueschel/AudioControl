@@ -12,7 +12,7 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
     val settings: StateFlow<Settings> =
         settingsStore.settings.stateIn(
             scope, SharingStarted.Eagerly,
-            Settings(SettingsDefaults.HOST, SettingsDefaults.ACCENT_HUE, SettingsDefaults.ACTIVE_GROUP),
+            Settings(SettingsDefaults.HOST, SettingsDefaults.ACCENT_HUE, SettingsDefaults.ACTIVE_GROUP, SettingsDefaults.OLED_BLACK),
         )
 
     private val hostState: StateFlow<String> =
@@ -40,8 +40,9 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
         scope.launch { settingsStore.setActiveGroup(g) }
     }
 
-    // Block bodies so the return type is Unit — required for ::setHost / ::setHue
-    // to satisfy (String) -> Unit / (Float) -> Unit at the call site in MainActivity.
+    // Block bodies so the return type is Unit — required for ::setHost / ::setHue / ::setOled
+    // to satisfy (String) -> Unit / (Float) -> Unit / (Boolean) -> Unit at the call site in MainActivity.
     fun setHost(h: String) { scope.launch { settingsStore.setHost(h) } }
     fun setHue(h: Float) { scope.launch { settingsStore.setAccentHue(h) } }
+    fun setOled(v: Boolean) { scope.launch { settingsStore.setOledBlack(v) } }
 }
