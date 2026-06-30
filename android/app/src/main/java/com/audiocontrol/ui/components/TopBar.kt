@@ -13,10 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.audiocontrol.ui.ConnState
 import com.audiocontrol.ui.theme.Ink
 import com.audiocontrol.ui.theme.LocalAccent
@@ -33,27 +37,13 @@ fun ControlTopBar(
         Modifier.fillMaxWidth().background(Color(Ink.bg)).padding(horizontal = 18.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Left group — weighted so right group never clips off-screen.
-        // Dot is leftmost (always visible), title ellipsizes if space is tight.
-        Row(
-            Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AnimatedConnectionDot(conn)
-            Spacer(Modifier.width(10.dp))
-            Text(
-                "AUDIO CONTROL CENTER",
-                fontSize = 11.sp,
-                color = Color(Ink.txt2),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        // Right group: Mute pill, Reset pill, accent-circle theme button, settings cog.
+        // Left group — dot + status label only (title removed)
+        AnimatedConnectionDot(conn)
+        Spacer(Modifier.weight(1f))
+        // Right group: Mute(mic) · Reset(autorenew) · Theme(accent circle) · Settings(cog)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            MuteButton(muted, onMute)
-            Spacer(Modifier.width(6.dp))
-            TwoTapReset(onReset)
+            MuteIconButton(muted, onMute)
+            TwoTapResetIcon(onReset)
             // Theme: compact accent-circle swatch button (tap → theme sheet)
             IconButton(onClick = onOpenTheme) {
                 Box(Modifier.size(18.dp).clip(CircleShape).background(accent))
@@ -72,30 +62,71 @@ fun ControlTopBar(
 }
 
 @Composable
-private fun MuteButton(muted: Boolean, onMute: () -> Unit) {
-    OutlinedButton(
-        onClick = onMute,
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (muted) Color(Ink.err) else Color(Ink.panel),
-            contentColor = if (muted) Color(Ink.txt) else Color(Ink.txt2),
-        ),
-    ) { Text(if (muted) "Muted" else "Mute", fontSize = 11.sp) }
+private fun MuteIconButton(muted: Boolean, onMute: () -> Unit) {
+    IconButton(onClick = onMute) {
+        Icon(
+            imageVector = if (muted) IconMicOff else IconMic,
+            contentDescription = if (muted) "Muted" else "Mute",
+            tint = if (muted) Color(Ink.err) else Color(Ink.txt2),
+            modifier = Modifier.size(22.dp),
+        )
+    }
 }
 
 @Composable
-private fun TwoTapReset(onReset: () -> Unit) {
+private fun TwoTapResetIcon(onReset: () -> Unit) {
     var armed by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf(false) }
     LaunchedEffect(armed) { if (armed) { delay(3_000); armed = false } }
     LaunchedEffect(done) { if (done) { delay(1_200); done = false } }
+
     val accent = LocalAccent.current
-    OutlinedButton(
-        onClick = { if (done) return@OutlinedButton; if (armed) { armed = false; done = true; onReset() } else armed = true },
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = if (armed) Color(Ink.err).copy(alpha = 0.08f) else Color(Ink.panel),
-            contentColor = when { done -> accent; armed -> Color(Ink.err); else -> Color(Ink.txt2) },
-        ),
-    ) { Text(if (done) "Reset ✓" else if (armed) "Tap again" else "↺ Reset", fontSize = 11.sp) }
+    val rotation = remember { Animatable(0f) }
+    LaunchedEffect(done) {
+        if (done) {
+            rotation.snapTo(0f)
+            rotation.animateTo(360f, animationSpec = tween(600, easing = LinearEasing))
+        }
+    }
+
+    val density = LocalDensity.current
+    val chipOffsetY = with(density) { -40.dp.roundToPx() }
+
+    Box {
+        if (armed) {
+            Popup(
+                alignment = Alignment.TopCenter,
+                offset = IntOffset(0, chipOffsetY),
+                properties = PopupProperties(focusable = false),
+            ) {
+                Box(
+                    Modifier
+                        .background(Color(Ink.panel2), RoundedCornerShape(6.dp))
+                        .border(1.dp, Color(Ink.err), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                ) {
+                    Text("Tap again", fontSize = 10.sp, color = Color(Ink.err))
+                }
+            }
+        }
+        IconButton(
+            onClick = {
+                if (done) return@IconButton
+                if (armed) { armed = false; done = true; onReset() } else armed = true
+            },
+        ) {
+            Icon(
+                imageVector = IconAutorenew,
+                contentDescription = "Reset",
+                tint = when {
+                    done -> accent
+                    armed -> Color(Ink.err)
+                    else -> Color(Ink.txt2)
+                },
+                modifier = Modifier.size(22.dp).rotate(rotation.value),
+            )
+        }
+    }
 }
 
 @Composable
