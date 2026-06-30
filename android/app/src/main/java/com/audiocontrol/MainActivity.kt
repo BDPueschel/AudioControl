@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
                     ControlScreen(
                         vm = container.vm,
                         settings = settings,
-                        onHostChange = container::setHost,
+                        settingsActions = container.settingsActions,
                         onHueChange = container::setHue,
                         onOledChange = container::setOled,
                         selectGroup = container.vm::selectGroup,

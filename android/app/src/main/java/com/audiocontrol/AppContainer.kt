@@ -7,6 +7,20 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+data class SettingsActions(
+    val setHost: (String) -> Unit,
+    val setStepMaster: (Double) -> Unit,
+    val setStepGain: (Double) -> Unit,
+    val setStepHpf: (Int) -> Unit,
+    val setStepLpf: (Int) -> Unit,
+    val setMasterCap: (Double) -> Unit,
+    val setKeepAwake: (Boolean) -> Unit,
+    val setOrientation: (String) -> Unit,
+    val setDefaultFilterType: (String) -> Unit,
+    val setHaptics: (Boolean) -> Unit,
+    val setDragSensitivity: (Float) -> Unit,
+)
+
 class AppContainer(context: Context, private val scope: CoroutineScope) {
     val settingsStore = SettingsStore(context.applicationContext)
     val settings: StateFlow<Settings> =
@@ -70,4 +84,18 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
     fun setDefaultFilterType(v: String) { scope.launch { settingsStore.setDefaultFilterType(v) } }
     fun setHaptics(v: Boolean) { scope.launch { settingsStore.setHaptics(v) } }
     fun setDragSensitivity(v: Float) { scope.launch { settingsStore.setDragSensitivity(v) } }
+
+    val settingsActions = SettingsActions(
+        setHost = ::setHost,
+        setStepMaster = ::setStepMaster,
+        setStepGain = ::setStepGain,
+        setStepHpf = ::setStepHpf,
+        setStepLpf = ::setStepLpf,
+        setMasterCap = ::setMasterCap,
+        setKeepAwake = ::setKeepAwake,
+        setOrientation = ::setOrientation,
+        setDefaultFilterType = ::setDefaultFilterType,
+        setHaptics = ::setHaptics,
+        setDragSensitivity = ::setDragSensitivity,
+    )
 }

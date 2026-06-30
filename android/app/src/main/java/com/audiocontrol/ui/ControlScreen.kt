@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.audiocontrol.SettingsActions
 import com.audiocontrol.data.Settings
 import com.audiocontrol.ui.components.*
 import com.audiocontrol.ui.theme.Ink
@@ -22,7 +23,7 @@ import com.audiocontrol.ui.theme.LocalAccent
 fun ControlScreen(
     vm: ControlViewModel,
     settings: Settings,
-    onHostChange: (String) -> Unit,
+    settingsActions: SettingsActions,
     onHueChange: (Float) -> Unit,
     onOledChange: (Boolean) -> Unit,
     selectGroup: (String) -> Unit,
@@ -81,7 +82,7 @@ fun ControlScreen(
     }
 
     if (showTheme) ThemeSheet(settings.accentHue, onHueChange, settings.oledBlack, onOledChange) { showTheme = false }
-    if (showSettings) SettingsSheet(settings.host, onHostChange) { showSettings = false }
+    if (showSettings) SettingsSheet(settings, settingsActions) { showSettings = false }
 }
 
 @Composable
