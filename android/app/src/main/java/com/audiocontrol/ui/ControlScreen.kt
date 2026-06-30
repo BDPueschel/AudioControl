@@ -12,7 +12,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.audiocontrol.SceneActions
 import com.audiocontrol.SettingsActions
+import com.audiocontrol.data.Scene
 import com.audiocontrol.data.Settings
 import com.audiocontrol.ui.components.*
 import com.audiocontrol.ui.theme.Ink
@@ -23,6 +25,8 @@ import com.audiocontrol.ui.theme.LocalAccent
 fun ControlScreen(
     vm: ControlViewModel,
     settings: Settings,
+    scenes: List<Scene>,
+    sceneActions: SceneActions,
     settingsActions: SettingsActions,
     onHueChange: (Float) -> Unit,
     onOledChange: (Boolean) -> Unit,
@@ -55,6 +59,14 @@ fun ControlScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     ErrorBanner(ui.errorBanner)
+                    ScenesBar(
+                        scenes = scenes,
+                        currentDsp = ui.dsp,
+                        onApply = sceneActions.apply,
+                        onSave = sceneActions.save,
+                        onRename = sceneActions.rename,
+                        onDelete = sceneActions.delete,
+                    )
                     val dsp = ui.dsp
                     if (dsp == null) {
                         Text("Loading…", color = Color(Ink.txt3))

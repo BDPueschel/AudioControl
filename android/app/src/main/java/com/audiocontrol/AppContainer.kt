@@ -7,6 +7,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
+data class SceneActions(
+    val apply: (Scene) -> Unit,
+    val save: (String) -> Unit,
+    val rename: (String, String) -> Unit,
+    val delete: (String) -> Unit,
+)
+
 data class SettingsActions(
     val setHost: (String) -> Unit,
     val setStepMaster: (Double) -> Unit,
@@ -96,6 +103,13 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
     fun deleteScene(name: String) { scope.launch { scenesStore.delete(name) } }
     fun renameScene(old: String, new: String) { scope.launch { scenesStore.rename(old, new) } }
     fun applyScene(scene: Scene) = vm.applyScene(scene)
+
+    val sceneActions = SceneActions(
+        apply = ::applyScene,
+        save = ::saveScene,
+        rename = ::renameScene,
+        delete = ::deleteScene,
+    )
 
     val settingsActions = SettingsActions(
         setHost = ::setHost,

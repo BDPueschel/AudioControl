@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
         container.vm.start()
         setContent {
             val settings by container.settings.collectAsState()
+            val scenes by container.scenes.collectAsState()
             LaunchedEffect(settings.keepAwake) {
                 if (settings.keepAwake) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -44,6 +45,8 @@ class MainActivity : ComponentActivity() {
                     ControlScreen(
                         vm = container.vm,
                         settings = settings,
+                        scenes = scenes,
+                        sceneActions = container.sceneActions,
                         settingsActions = container.settingsActions,
                         onHueChange = container::setHue,
                         onOledChange = container::setOled,
