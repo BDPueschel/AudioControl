@@ -38,11 +38,11 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
 
             // ── SERVER ──────────────────────────────────────────────
-            SettingsSection("SERVER") {
+            Card(title = "SERVER", tag = null) {
                 OutlinedTextField(
                     value = hostText,
                     onValueChange = { hostText = it },
@@ -58,7 +58,7 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
             }
 
             // ── STEP SIZES ──────────────────────────────────────────
-            SettingsSection("STEP SIZES") {
+            Card(title = "STEP SIZES", tag = null) {
                 StepRow(
                     label = "Master",
                     options = listOf("0.5", "1", "2"),
@@ -89,7 +89,7 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
             }
 
             // ── MASTER CAP ─────────────────────────────────────────
-            SettingsSection("MASTER CAP") {
+            Card(title = "MASTER CAP", tag = null) {
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -130,7 +130,7 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
             }
 
             // ── DISPLAY ─────────────────────────────────────────────
-            SettingsSection("DISPLAY") {
+            Card(title = "DISPLAY", tag = null) {
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -163,7 +163,7 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
             }
 
             // ── DEFAULT FILTER ──────────────────────────────────────
-            SettingsSection("DEFAULT FILTER") {
+            Card(title = "DEFAULT FILTER", tag = null) {
                 FilterTypeDropdown(
                     selected = FilterType.fromWire(settings.defaultFilterType),
                     onSelect = { actions.setDefaultFilterType(it.wire) },
@@ -171,7 +171,7 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
             }
 
             // ── FEEL ────────────────────────────────────────────────
-            SettingsSection("FEEL") {
+            Card(title = "FEEL", tag = null) {
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -227,15 +227,6 @@ fun SettingsSheet(settings: Settings, actions: SettingsActions, onDismiss: () ->
                 TextButton(onClick = { capConfirmPending = null }) { Text("Cancel") }
             },
         )
-    }
-}
-
-@Composable
-private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(title, fontSize = 11.sp, color = Color(Ink.txt3), letterSpacing = 1.sp)
-        Spacer(Modifier.height(12.dp))
-        content()
     }
 }
 
