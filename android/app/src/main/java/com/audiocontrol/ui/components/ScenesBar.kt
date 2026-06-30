@@ -2,20 +2,32 @@
 
 package com.audiocontrol.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -138,60 +150,102 @@ fun ScenesBar(
     var showSaveDialog by remember { mutableStateOf(false) }
     // Rename dialog (existing scene old name, or null = not shown).
     var renameTarget by remember { mutableStateOf<String?>(null) }
+    // Collapse state — persists across recompositions and rotation.
+    var collapsed by rememberSaveable { mutableStateOf(false) }
+
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (collapsed) -90f else 0f,
+        label = "scenesChevronRotation",
+    )
 
     Column(modifier.fillMaxWidth()) {
-        Text(
-            text = "SCENES",
-            fontSize = 10.sp,
-            color = Color(Ink.txt3),
-            modifier = Modifier.padding(bottom = 8.dp),
-        )
-
+        // Tappable header row with label, optional count, and rotating chevron.
         Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                ) { collapsed = !collapsed }
+                .padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            scenes.forEach { scene ->
-                // Box anchors the DropdownMenu to the chip.
-                Box {
-                    SceneChip(
-                        scene = scene,
-                        isCurrent = currentDsp == scene.dsp,
-                        onTap = { onApply(scene) },
-                        onLongPress = { menuForScene = scene.name },
-                    )
-                    DropdownMenu(
-                        expanded = menuForScene == scene.name,
-                        onDismissRequest = { menuForScene = null },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Overwrite") },
-                            onClick = { onSave(scene.name); menuForScene = null },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Rename") },
-                            onClick = { renameTarget = scene.name; menuForScene = null },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete") },
-                            onClick = { onDelete(scene.name); menuForScene = null },
-                        )
-                    }
-                }
+            Text(
+                text = "SCENES",
+                fontSize = 10.sp,
+                color = Color(Ink.txt3),
+            )
+            if (scenes.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "${scenes.size}",
+                    fontSize = 9.sp,
+                    color = Color(Ink.txt3),
+                )
             }
-            // Trailing "+ Save" chip — always visible as the primary affordance.
-            SaveChip(onClick = { showSaveDialog = true })
+            Spacer(Modifier.weight(1f))
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = if (collapsed) "Expand scenes" else "Collapse scenes",
+                tint = Color(Ink.txt3),
+                modifier = Modifier.size(16.dp).rotate(chevronRotation),
+            )
         }
 
-        // Empty-state hint below the chip row.
-        if (scenes.isEmpty()) {
-            Text(
-                text = "Save your current setup as a scene",
-                fontSize = 11.sp,
-                color = Color(Ink.txt3),
-                modifier = Modifier.padding(top = 6.dp),
-            )
+        // Chips row and empty-state caption, collapsible.
+        AnimatedVisibility(
+            visible = !collapsed,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    scenes.forEach { scene ->
+                        // Box anchors the DropdownMenu to the chip.
+                        Box {
+                            SceneChip(
+                                scene = scene,
+                                isCurrent = currentDsp == scene.dsp,
+                                onTap = { onApply(scene) },
+                                onLongPress = { menuForScene = scene.name },
+                            )
+                            DropdownMenu(
+                                expanded = menuForScene == scene.name,
+                                onDismissRequest = { menuForScene = null },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Overwrite") },
+                                    onClick = { onSave(scene.name); menuForScene = null },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Rename") },
+                                    onClick = { renameTarget = scene.name; menuForScene = null },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = { onDelete(scene.name); menuForScene = null },
+                                )
+                            }
+                        }
+                    }
+                    // Trailing "+ Save" chip — always visible as the primary affordance.
+                    SaveChip(onClick = { showSaveDialog = true })
+                }
+
+                // Empty-state hint below the chip row.
+                if (scenes.isEmpty()) {
+                    Text(
+                        text = "Save your current setup as a scene",
+                        fontSize = 11.sp,
+                        color = Color(Ink.txt3),
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
+            }
         }
     }
 
