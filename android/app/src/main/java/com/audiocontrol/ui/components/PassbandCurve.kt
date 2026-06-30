@@ -42,6 +42,7 @@ fun PassbandCurve(
     modifier: Modifier = Modifier,
     onHpfDrag: ((Int, Boolean) -> Unit)? = null,
     onLpfDrag: ((Int, Boolean) -> Unit)? = null,
+    dragSensitivity: Float = 0.5f,
 ) {
     val accent = LocalAccent.current
     val inkBg = LocalInkBg.current
@@ -53,6 +54,7 @@ fun PassbandCurve(
     val lpfState = rememberUpdatedState(lpf)
     val onHpfDragState = rememberUpdatedState(onHpfDrag)
     val onLpfDragState = rememberUpdatedState(onLpfDrag)
+    val latestDragSensitivity by rememberUpdatedState(dragSensitivity)
 
     // Drag state — plain object, not Compose state, so reads don't trigger recomposition.
     val drag = remember {
@@ -146,7 +148,7 @@ fun PassbandCurve(
                             val w = size.width.toFloat()
                             // Log-damped relative mapping: accumulate px delta scaled by DAMP
                             // relative to the log-space start position.
-                            val newXNorm = (drag.startXNorm + (drag.accDx / w * DAMP).toDouble())
+                            val newXNorm = (drag.startXNorm + (drag.accDx / w * latestDragSensitivity).toDouble())
                                 .coerceIn(0.0, 1.0)
                             val targetFreq = freqAtXNorm(newXNorm).roundToInt()
                             when (node) {
@@ -157,7 +159,7 @@ fun PassbandCurve(
                         onDragEnd = {
                             val node = drag.activeNode ?: return@detectDragGestures
                             val w = size.width.toFloat()
-                            val newXNorm = (drag.startXNorm + (drag.accDx / w * DAMP).toDouble())
+                            val newXNorm = (drag.startXNorm + (drag.accDx / w * latestDragSensitivity).toDouble())
                                 .coerceIn(0.0, 1.0)
                             val targetFreq = freqAtXNorm(newXNorm).roundToInt()
                             when (node) {

@@ -16,9 +16,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
@@ -36,17 +38,26 @@ fun StepperRow(
     dragStepEnabled: Boolean = false,
     onDragStep: (Int) -> Unit = {},
     onDragRelease: () -> Unit = {},
+    dragSensitivity: Float = 0.5f,
+    haptics: Boolean = true,
 ) {
     val accent = LocalAccent.current
     val density = LocalDensity.current
+    val hapticFeedback = LocalHapticFeedback.current
     // rememberUpdatedState ensures the pointerInput block (keyed on Unit, never restarted)
     // always calls the latest lambda even as master/gain recomposes during a live drag.
     val latestOnDragStep by rememberUpdatedState(onDragStep)
     val latestOnDragRelease by rememberUpdatedState(onDragRelease)
+    val latestHaptics by rememberUpdatedState(haptics)
+    val latestHapticFeedback by rememberUpdatedState(hapticFeedback)
+    val latestDragSensitivity by rememberUpdatedState(dragSensitivity)
     var dragging by remember { mutableStateOf(false) }
 
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        StepBtn("−", stepLabel, enabled, onMinus)
+        StepBtn("−", stepLabel, enabled, onClick = {
+            if (haptics) hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onMinus()
+        })
         Column(
             Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
                 .alpha(if (enabled) 1f else 0.38f).padding(vertical = 4.dp),
@@ -54,17 +65,24 @@ fun StepperRow(
         ) {
             val dragMod = if (dragStepEnabled) {
                 Modifier.pointerInput(Unit) {
-                    // ~28 dp per step = half the original 14 dp sensitivity
-                    val thresholdPx = 28.dp.toPx()
+                    // threshold = 14 dp / sensitivity → 0.5 gives 28 dp (original feel),
+                    // 1.0 gives 14 dp (more sensitive), 0.25 gives 56 dp (less sensitive).
                     var accum = 0f
                     detectHorizontalDragGestures(
                         onDragEnd = { accum = 0f; dragging = false; latestOnDragRelease() },
                         onDragCancel = { accum = 0f; dragging = false; latestOnDragRelease() },
                     ) { _, dx ->
+                        val thresholdPx = (14.dp / latestDragSensitivity).toPx()
                         dragging = true
                         accum += dx
-                        while (accum >= thresholdPx) { latestOnDragStep(+1); accum -= thresholdPx }
-                        while (accum <= -thresholdPx) { latestOnDragStep(-1); accum += thresholdPx }
+                        while (accum >= thresholdPx) {
+                            if (latestHaptics) latestHapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            latestOnDragStep(+1); accum -= thresholdPx
+                        }
+                        while (accum <= -thresholdPx) {
+                            if (latestHaptics) latestHapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            latestOnDragStep(-1); accum += thresholdPx
+                        }
                     }
                 }
             } else Modifier
@@ -103,7 +121,10 @@ fun StepperRow(
                 Text(unit, fontSize = 12.sp, color = Color(Ink.txt3))
             }
         }
-        StepBtn("+", stepLabel, enabled, onPlus)
+        StepBtn("+", stepLabel, enabled, onClick = {
+            if (haptics) hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onPlus()
+        })
     }
 }
 

@@ -60,21 +60,21 @@ fun ControlScreen(
                         Text("Loading…", color = Color(Ink.txt3))
                         return@Column
                     }
-                    MasterCard(dsp.master_gain, showRail = expanded, vm = vm)
+                    MasterCard(dsp.master_gain, showRail = expanded, vm = vm, settings = settings)
                     GroupToggle(settings.activeGroup, selectGroup)
                     val ch = if (settings.activeGroup == "mains") dsp.mains else dsp.subs
                     if (expanded) {
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Box(Modifier.weight(1f)) {
-                                GainCard(settings.activeGroup, ch.gain, showRail = true, vm = vm)
+                                GainCard(settings.activeGroup, ch.gain, showRail = true, vm = vm, settings = settings)
                             }
                             Box(Modifier.weight(1f)) {
-                                CrossoverCard(settings.activeGroup, ch, vm = vm)
+                                CrossoverCard(settings.activeGroup, ch, vm = vm, settings = settings)
                             }
                         }
                     } else {
-                        GainCard(settings.activeGroup, ch.gain, showRail = false, vm = vm)
-                        CrossoverCard(settings.activeGroup, ch, vm = vm)
+                        GainCard(settings.activeGroup, ch.gain, showRail = false, vm = vm, settings = settings)
+                        CrossoverCard(settings.activeGroup, ch, vm = vm, settings = settings)
                     }
                 }
             }

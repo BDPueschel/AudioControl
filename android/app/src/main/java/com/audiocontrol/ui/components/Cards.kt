@@ -14,12 +14,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.audiocontrol.core.*
 import com.audiocontrol.data.ChannelState
+import com.audiocontrol.data.Settings
 import com.audiocontrol.ui.ControlViewModel
 import com.audiocontrol.ui.theme.Ink
 import com.audiocontrol.ui.theme.LocalAccent
 import com.audiocontrol.ui.theme.LocalOled
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.roundToInt
+
+/** Formats a step size as a compact string — whole numbers as Int, fractional with trailing
+ *  zeros stripped (e.g. 1.0→"1", 0.5→"0.5", 0.25→"0.25"). */
+private fun fmtStep(v: Double): String =
+    if (v == floor(v)) v.toInt().toString()
+    else String.format(java.util.Locale.US, "%.2f", v).trimEnd('0')
 
 @Composable
 fun Card(title: String, tag: String?, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -41,22 +49,25 @@ fun Card(title: String, tag: String?, modifier: Modifier = Modifier, content: @C
 }
 
 @Composable
-fun MasterCard(master: Double, showRail: Boolean, vm: ControlViewModel) {
+fun MasterCard(master: Double, showRail: Boolean, vm: ControlViewModel, settings: Settings) {
     var editing by remember { mutableStateOf(false) }
     Card("MASTER", "volume") {
         StepperRow(
-            value = fmtDb(master), unit = "dB", stepLabel = "1 dB", positive = false,
-            onMinus = { vm.nudgeMaster(-1.0) }, onPlus = { vm.nudgeMaster(1.0) }, onTapValue = { editing = true },
+            value = fmtDb(master), unit = "dB", stepLabel = "${fmtStep(settings.stepMaster)} dB", positive = false,
+            onMinus = { vm.nudgeMaster(-settings.stepMaster) }, onPlus = { vm.nudgeMaster(settings.stepMaster) },
+            onTapValue = { editing = true },
             dragStepEnabled = !showRail,
-            onDragStep = { dir -> vm.dragMaster(Ranges.MASTER.clampStep(master + dir * Ranges.MASTER.step), release = false) },
+            onDragStep = { dir -> vm.dragMaster(master + dir * settings.stepMaster, release = false) },
             onDragRelease = { vm.dragMaster(master, release = true) },
+            dragSensitivity = settings.dragSensitivity,
+            haptics = settings.haptics,
         )
         if (showRail) {
             Spacer(Modifier.height(16.dp))
-            val frac = ((master - Ranges.MASTER.min) / (Ranges.MASTER.max - Ranges.MASTER.min)).toFloat()
+            val frac = ((master - Ranges.MASTER.min) / (settings.masterCap - Ranges.MASTER.min)).toFloat()
             LevelRail(
                 fraction = frac,
-                onDrag = { f, release -> vm.dragMaster(Ranges.MASTER.min + f * (Ranges.MASTER.max - Ranges.MASTER.min), release) },
+                onDrag = { f, release -> vm.dragMaster(Ranges.MASTER.min + f * (settings.masterCap - Ranges.MASTER.min), release) },
             )
         }
     }
@@ -69,15 +80,18 @@ fun MasterCard(master: Double, showRail: Boolean, vm: ControlViewModel) {
 }
 
 @Composable
-fun GainCard(group: String, gain: Double, showRail: Boolean, vm: ControlViewModel) {
+fun GainCard(group: String, gain: Double, showRail: Boolean, vm: ControlViewModel, settings: Settings) {
     var editing by remember { mutableStateOf(false) }
     Card("GAIN", null) {
         StepperRow(
-            value = fmtDb(gain), unit = "dB", stepLabel = "0.5", positive = gain > 0,
-            onMinus = { vm.nudgeGain(group, -0.5) }, onPlus = { vm.nudgeGain(group, 0.5) }, onTapValue = { editing = true },
+            value = fmtDb(gain), unit = "dB", stepLabel = fmtStep(settings.stepGain), positive = gain > 0,
+            onMinus = { vm.nudgeGain(group, -settings.stepGain) }, onPlus = { vm.nudgeGain(group, settings.stepGain) },
+            onTapValue = { editing = true },
             dragStepEnabled = !showRail,
-            onDragStep = { dir -> vm.dragGain(group, Ranges.GAIN.clampStep(gain + dir * Ranges.GAIN.step), release = false) },
+            onDragStep = { dir -> vm.dragGain(group, gain + dir * settings.stepGain, release = false) },
             onDragRelease = { vm.dragGain(group, gain, release = true) },
+            dragSensitivity = settings.dragSensitivity,
+            haptics = settings.haptics,
         )
         if (showRail) {
             Spacer(Modifier.height(16.dp))
@@ -92,20 +106,28 @@ fun GainCard(group: String, gain: Double, showRail: Boolean, vm: ControlViewMode
 }
 
 @Composable
-fun CrossoverCard(group: String, ch: ChannelState, vm: ControlViewModel) {
+fun CrossoverCard(group: String, ch: ChannelState, vm: ControlViewModel, settings: Settings) {
     Card("CROSSOVER", "L / R") {
         FilterBlock(
             label = "High-Pass", freq = ch.hpf.freq, bypass = ch.hpf.bypass, type = ch.hpf.filterType,
-            onToggle = { vm.toggleHpf(group) }, onMinus = { vm.nudgeHpf(group, -5) }, onPlus = { vm.nudgeHpf(group, 5) },
+            onToggle = { vm.toggleHpf(group) },
+            onMinus = { vm.nudgeHpf(group, -settings.stepHpf) },
+            onPlus = { vm.nudgeHpf(group, settings.stepHpf) },
             onType = { vm.setHpfType(group, it) },
             onSetFreq = { vm.setHpfFreq(group, it) },
+            stepLabel = "${settings.stepHpf} Hz",
+            haptics = settings.haptics,
         )
         Spacer(Modifier.height(16.dp))
         FilterBlock(
             label = "Low-Pass", freq = ch.lpf.freq, bypass = ch.lpf.bypass, type = ch.lpf.filterType,
-            onToggle = { vm.toggleLpf(group) }, onMinus = { vm.nudgeLpf(group, -5) }, onPlus = { vm.nudgeLpf(group, 5) },
+            onToggle = { vm.toggleLpf(group) },
+            onMinus = { vm.nudgeLpf(group, -settings.stepLpf) },
+            onPlus = { vm.nudgeLpf(group, settings.stepLpf) },
             onType = { vm.setLpfType(group, it) },
             onSetFreq = { vm.setLpfFreq(group, it) },
+            stepLabel = "${settings.stepLpf} Hz",
+            haptics = settings.haptics,
         )
         Spacer(Modifier.height(16.dp))
         PassbandCurve(
@@ -113,6 +135,7 @@ fun CrossoverCard(group: String, ch: ChannelState, vm: ControlViewModel) {
             lpf = FilterCurveSpec(ch.lpf.freq, ch.lpf.bypass, ch.lpf.filterType),
             onHpfDrag = { freq, release -> vm.dragHpfFreq(group, freq, release) },
             onLpfDrag = { freq, release -> vm.dragLpfFreq(group, freq, release) },
+            dragSensitivity = settings.dragSensitivity,
         )
     }
 }
@@ -122,6 +145,8 @@ private fun FilterBlock(
     label: String, freq: Int, bypass: Boolean, type: FilterType,
     onToggle: () -> Unit, onMinus: () -> Unit, onPlus: () -> Unit, onType: (FilterType) -> Unit,
     onSetFreq: (Int) -> Unit,
+    stepLabel: String = "5 Hz",
+    haptics: Boolean = true,
 ) {
     var editing by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -130,8 +155,9 @@ private fun FilterBlock(
     }
     Spacer(Modifier.height(8.dp))
     StepperRow(
-        value = fmtHz(freq), unit = "Hz", stepLabel = "5 Hz", positive = false,
+        value = fmtHz(freq), unit = "Hz", stepLabel = stepLabel, positive = false,
         onMinus = onMinus, onPlus = onPlus, onTapValue = { editing = true }, enabled = !bypass,
+        haptics = haptics,
     )
     Spacer(Modifier.height(8.dp))
     FilterTypeDropdown(selected = type, onSelect = onType)

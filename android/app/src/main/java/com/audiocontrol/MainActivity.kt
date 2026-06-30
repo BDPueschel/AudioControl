@@ -1,11 +1,13 @@
 package com.audiocontrol
 
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -22,11 +24,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // wall-mounted tablet
         container = AppContainer(this, lifecycleScope)
         container.vm.start()
         setContent {
             val settings by container.settings.collectAsState()
+            LaunchedEffect(settings.keepAwake) {
+                if (settings.keepAwake) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+            LaunchedEffect(settings.orientation) {
+                requestedOrientation = when (settings.orientation) {
+                    "portrait" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    "landscape" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                    else -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                }
+            }
             AppTheme(accentHue = settings.accentHue, oledBlack = settings.oledBlack) {
                 Surface(Modifier.fillMaxSize(), color = Color(LocalInkBg.current)) {
                     ControlScreen(
