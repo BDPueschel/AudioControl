@@ -1,14 +1,26 @@
 package com.audiocontrol.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,29 +41,96 @@ private fun fmtStep(v: Double): String =
     if (v == floor(v)) v.toInt().toString()
     else String.format(java.util.Locale.US, "%.2f", v).trimEnd('0')
 
+/**
+ * Rounded panel with a title/tag header row and slot for content.
+ *
+ * Collapse support is opt-in: when [onToggleCollapse] is non-null the header becomes clickable
+ * and shows a rotating chevron. [collapsed] controls visibility; [collapsedSummary] renders a
+ * compact value between the title and the chevron when the card is collapsed.
+ * When [onToggleCollapse] is null the card behaves exactly as before (no chevron, content always
+ * shown).
+ */
 @Composable
-fun Card(title: String, tag: String?, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+fun Card(
+    title: String,
+    tag: String?,
+    modifier: Modifier = Modifier,
+    collapsed: Boolean = false,
+    onToggleCollapse: (() -> Unit)? = null,
+    collapsedSummary: (@Composable RowScope.() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val oled = LocalOled.current
     val accent = LocalAccent.current
     val fill = if (oled) Color(0xFF0D0E10) else Color(Ink.panel)
     val borderColor = if (oled) accent else Color(Ink.line)
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (collapsed) -90f else 0f,
+        label = "chevronRotation",
+    )
     Column(
         modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(fill)
             .border(1.dp, borderColor, RoundedCornerShape(16.dp)).padding(16.dp),
     ) {
-        Row(verticalAlignment = Alignment.Bottom) {
+        Row(
+            modifier = if (onToggleCollapse != null)
+                Modifier.fillMaxWidth().clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                ) { onToggleCollapse() }
+            else
+                Modifier.fillMaxWidth(),
+            verticalAlignment = if (onToggleCollapse != null) Alignment.CenterVertically else Alignment.Bottom,
+        ) {
             Text(title, fontSize = 13.sp, color = Color(Ink.txt))
             if (tag != null) { Spacer(Modifier.width(10.dp)); Text(tag, fontSize = 10.sp, color = Color(Ink.txt3)) }
+            if (onToggleCollapse != null) {
+                Spacer(Modifier.weight(1f))
+                if (collapsed && collapsedSummary != null) {
+                    collapsedSummary()
+                    Spacer(Modifier.width(8.dp))
+                }
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (collapsed) "Expand" else "Collapse",
+                    tint = Color(Ink.txt3),
+                    modifier = Modifier.size(18.dp).rotate(chevronRotation),
+                )
+            }
         }
-        Spacer(Modifier.height(14.dp))
-        content()
+        AnimatedVisibility(
+            visible = !collapsed,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column {
+                Spacer(Modifier.height(14.dp))
+                content()
+            }
+        }
     }
 }
 
 @Composable
-fun MasterCard(master: Double, showRail: Boolean, vm: ControlViewModel, settings: Settings) {
+fun MasterCard(
+    master: Double,
+    showRail: Boolean,
+    vm: ControlViewModel,
+    settings: Settings,
+    collapsed: Boolean = false,
+    onToggleCollapse: (() -> Unit)? = null,
+) {
+    val accent = LocalAccent.current
     var editing by remember { mutableStateOf(false) }
-    Card("MASTER", "volume") {
+    Card(
+        title = "MASTER",
+        tag = "volume",
+        collapsed = collapsed,
+        onToggleCollapse = onToggleCollapse,
+        collapsedSummary = {
+            Text(fmtDb(master) + " dB", fontSize = 13.sp, color = accent)
+        },
+    ) {
         StepperRow(
             value = fmtDb(master), unit = "dB", stepLabel = "${fmtStep(settings.stepMaster)} dB", positive = false,
             onMinus = { vm.nudgeMaster(-settings.stepMaster) }, onPlus = { vm.nudgeMaster(settings.stepMaster) },
@@ -80,9 +159,25 @@ fun MasterCard(master: Double, showRail: Boolean, vm: ControlViewModel, settings
 }
 
 @Composable
-fun GainCard(group: String, gain: Double, showRail: Boolean, vm: ControlViewModel, settings: Settings) {
+fun GainCard(
+    group: String,
+    gain: Double,
+    showRail: Boolean,
+    vm: ControlViewModel,
+    settings: Settings,
+    collapsed: Boolean = false,
+    onToggleCollapse: (() -> Unit)? = null,
+) {
     var editing by remember { mutableStateOf(false) }
-    Card("GAIN", null) {
+    Card(
+        title = "GAIN",
+        tag = null,
+        collapsed = collapsed,
+        onToggleCollapse = onToggleCollapse,
+        collapsedSummary = {
+            Text(fmtDb(gain) + " dB", fontSize = 13.sp, color = Color(Ink.txt))
+        },
+    ) {
         StepperRow(
             value = fmtDb(gain), unit = "dB", stepLabel = fmtStep(settings.stepGain), positive = gain > 0,
             onMinus = { vm.nudgeGain(group, -settings.stepGain) }, onPlus = { vm.nudgeGain(group, settings.stepGain) },
@@ -106,8 +201,25 @@ fun GainCard(group: String, gain: Double, showRail: Boolean, vm: ControlViewMode
 }
 
 @Composable
-fun CrossoverCard(group: String, ch: ChannelState, vm: ControlViewModel, settings: Settings) {
-    Card("CROSSOVER", "L / R") {
+fun CrossoverCard(
+    group: String,
+    ch: ChannelState,
+    vm: ControlViewModel,
+    settings: Settings,
+    collapsed: Boolean = false,
+    onToggleCollapse: (() -> Unit)? = null,
+) {
+    val hpfLabel = if (ch.hpf.bypass) "—" else fmtHz(ch.hpf.freq)
+    val lpfLabel = if (ch.lpf.bypass) "—" else fmtHz(ch.lpf.freq)
+    Card(
+        title = "CROSSOVER",
+        tag = "L / R",
+        collapsed = collapsed,
+        onToggleCollapse = onToggleCollapse,
+        collapsedSummary = {
+            Text("HPF $hpfLabel · LPF $lpfLabel Hz", fontSize = 11.sp, color = Color(Ink.txt2))
+        },
+    ) {
         FilterBlock(
             label = "High-Pass", freq = ch.hpf.freq, bypass = ch.hpf.bypass, type = ch.hpf.filterType,
             onToggle = { vm.toggleHpf(group) },

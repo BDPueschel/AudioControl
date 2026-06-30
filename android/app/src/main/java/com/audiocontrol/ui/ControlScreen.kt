@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -35,6 +36,9 @@ fun ControlScreen(
     val ui by vm.ui.collectAsState()
     var showTheme by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var masterCollapsed by rememberSaveable { mutableStateOf(false) }
+    var gainCollapsed by rememberSaveable { mutableStateOf(false) }
+    var crossoverCollapsed by rememberSaveable { mutableStateOf(false) }
     val pull = rememberPullToRefreshState()
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -72,21 +76,21 @@ fun ControlScreen(
                         Text("Loading…", color = Color(Ink.txt3))
                         return@Column
                     }
-                    MasterCard(dsp.master_gain, showRail = expanded, vm = vm, settings = settings)
+                    MasterCard(dsp.master_gain, showRail = expanded, vm = vm, settings = settings, collapsed = masterCollapsed, onToggleCollapse = { masterCollapsed = !masterCollapsed })
                     GroupToggle(settings.activeGroup, selectGroup)
                     val ch = if (settings.activeGroup == "mains") dsp.mains else dsp.subs
                     if (expanded) {
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Box(Modifier.weight(1f)) {
-                                GainCard(settings.activeGroup, ch.gain, showRail = true, vm = vm, settings = settings)
+                                GainCard(settings.activeGroup, ch.gain, showRail = true, vm = vm, settings = settings, collapsed = gainCollapsed, onToggleCollapse = { gainCollapsed = !gainCollapsed })
                             }
                             Box(Modifier.weight(1f)) {
-                                CrossoverCard(settings.activeGroup, ch, vm = vm, settings = settings)
+                                CrossoverCard(settings.activeGroup, ch, vm = vm, settings = settings, collapsed = crossoverCollapsed, onToggleCollapse = { crossoverCollapsed = !crossoverCollapsed })
                             }
                         }
                     } else {
-                        GainCard(settings.activeGroup, ch.gain, showRail = false, vm = vm, settings = settings)
-                        CrossoverCard(settings.activeGroup, ch, vm = vm, settings = settings)
+                        GainCard(settings.activeGroup, ch.gain, showRail = false, vm = vm, settings = settings, collapsed = gainCollapsed, onToggleCollapse = { gainCollapsed = !gainCollapsed })
+                        CrossoverCard(settings.activeGroup, ch, vm = vm, settings = settings, collapsed = crossoverCollapsed, onToggleCollapse = { crossoverCollapsed = !crossoverCollapsed })
                     }
                 }
             }
