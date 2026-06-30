@@ -18,7 +18,8 @@ class ControlViewModel(
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
 
-    private val gate = DragCommitGate()
+    private val gateMaster = DragCommitGate()
+    private val gateGain = DragCommitGate()
     private var inFlight = false
     private var pending: (suspend () -> Unit)? = null
 
@@ -37,7 +38,7 @@ class ControlViewModel(
 
     private suspend fun pollHealth() {
         repo.health()
-            .onSuccess { _ui.update { s -> s.copy(conn = ConnState.CONNECTED) } }
+            .onSuccess { _ui.update { s -> s.copy(conn = ConnState.CONNECTED, errorBanner = null) } }
             .onFailure { _ui.update { s -> s.copy(conn = ConnState.DISCONNECTED) } }
     }
 
@@ -54,11 +55,14 @@ class ControlViewModel(
         if (inFlight) { pending = { coalesced(block) }; return }
         inFlight = true
         viewModelScope.launch {
-            block()
-                .onSuccess { st -> _ui.update { it.copy(dsp = st, conn = ConnState.CONNECTED) } }
-                .onFailure { _ui.update { it.copy(conn = ConnState.DISCONNECTED) } }
-            inFlight = false
-            val p = pending; pending = null; p?.invoke()
+            try {
+                block()
+                    .onSuccess { st -> _ui.update { it.copy(dsp = st, conn = ConnState.CONNECTED, errorBanner = null) } }
+                    .onFailure { _ui.update { it.copy(conn = ConnState.DISCONNECTED, errorBanner = "Couldn't reach the panel — pull to retry.") } }
+            } finally {
+                inFlight = false
+                val p = pending; pending = null; p?.invoke()
+            }
         }
     }
 
@@ -68,8 +72,8 @@ class ControlViewModel(
     fun setMaster(v: Double) = applyMutation { repo.masterGain(Ranges.MASTER.clampStep(v)) }
     fun dragMaster(v: Double, release: Boolean) {
         val target = Ranges.MASTER.clampStep(v)
-        if (release) { gate.reset(target); coalesced { repo.masterGain(target) } }
-        else if (gate.shouldEmit(target, Ranges.MASTER.step * 2)) coalesced { repo.masterGain(target) }
+        if (release) { gateMaster.reset(target); coalesced { repo.masterGain(target) } }
+        else if (gateMaster.shouldEmit(target, Ranges.MASTER.step * 2)) coalesced { repo.masterGain(target) }
     }
 
     fun toggleMute() = dsp?.let { d -> applyMutation { repo.mute(!d.mute) } } ?: Unit
@@ -80,8 +84,8 @@ class ControlViewModel(
     fun setGain(group: String, v: Double) = applyMutation { repo.gain(group, Ranges.GAIN.clampStep(v)) }
     fun dragGain(group: String, v: Double, release: Boolean) {
         val target = Ranges.GAIN.clampStep(v)
-        if (release) { gate.reset(target); coalesced { repo.gain(group, target) } }
-        else if (gate.shouldEmit(target, Ranges.GAIN.step * 2)) coalesced { repo.gain(group, target) }
+        if (release) { gateGain.reset(target); coalesced { repo.gain(group, target) } }
+        else if (gateGain.shouldEmit(target, Ranges.GAIN.step * 2)) coalesced { repo.gain(group, target) }
     }
 
     fun nudgeHpf(group: String, d: Int) = ch(group)?.let { c -> applyMutation { repo.hpf(group, clampHpf(c.hpf.freq + d, c.lpf.freq), null, null) } } ?: Unit
