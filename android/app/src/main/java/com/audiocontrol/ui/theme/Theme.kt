@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Color
 fun AppTheme(accentHue: Float = 189f, oledBlack: Boolean = false, content: @Composable () -> Unit) {
     val accent = accentFor(accentHue)
     val bg: Long = if (oledBlack) 0xFF000000L else Ink.bg
-    CompositionLocalProvider(LocalAccent provides accent, LocalInkBg provides bg) {
+    CompositionLocalProvider(LocalAccent provides accent, LocalInkBg provides bg, LocalOled provides oledBlack) {
         MaterialTheme(
             colorScheme = darkColorScheme(
                 background = Color(bg),

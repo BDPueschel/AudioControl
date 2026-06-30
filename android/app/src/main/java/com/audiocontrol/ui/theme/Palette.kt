@@ -44,3 +44,6 @@ val LocalAccent = compositionLocalOf { accentFor(189f) }
 
 /** Themeable background token — swapped to pure black in OLED mode. Stored as Long ARGB. */
 val LocalInkBg = compositionLocalOf<Long> { Ink.bg }
+
+/** True when OLED-black mode is active; cards darken + use accent borders. */
+val LocalOled = compositionLocalOf { false }

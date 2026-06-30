@@ -16,14 +16,20 @@ import com.audiocontrol.core.*
 import com.audiocontrol.data.ChannelState
 import com.audiocontrol.ui.ControlViewModel
 import com.audiocontrol.ui.theme.Ink
+import com.audiocontrol.ui.theme.LocalAccent
+import com.audiocontrol.ui.theme.LocalOled
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
 fun Card(title: String, tag: String?, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val oled = LocalOled.current
+    val accent = LocalAccent.current
+    val fill = if (oled) Color(0xFF0D0E10) else Color(Ink.panel)
+    val borderColor = if (oled) accent else Color(Ink.line)
     Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(Ink.panel))
-            .border(1.dp, Color(Ink.line), RoundedCornerShape(16.dp)).padding(16.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(fill)
+            .border(1.dp, borderColor, RoundedCornerShape(16.dp)).padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(title, fontSize = 13.sp, color = Color(Ink.txt))
