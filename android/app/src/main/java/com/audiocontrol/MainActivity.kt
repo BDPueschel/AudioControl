@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
@@ -29,7 +28,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by container.settings.collectAsState()
             AppTheme(accentHue = settings.accentHue, oledBlack = settings.oledBlack) {
-                Surface(Modifier.fillMaxSize().background(Color(LocalInkBg.current))) {
+                Surface(Modifier.fillMaxSize(), color = Color(LocalInkBg.current)) {
                     ControlScreen(
                         vm = container.vm,
                         settings = settings,
