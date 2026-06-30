@@ -34,6 +34,13 @@ def test_master_caps():
     assert d.set_master_gain(0.0).master_gain == -20.0
 
 
+def test_master_half_db_resolution():
+    d = DeviceController()
+    # half-dB steps must survive (were previously rounded to whole dB)
+    assert d.set_master_gain(-35.5).master_gain == -35.5
+    assert d.set_master_gain(-35.7).master_gain == -35.5  # snaps to 0.5 grid
+
+
 def test_reset_preserves_master():
     d = DeviceController()
     d.set_master_gain(-30.0)
