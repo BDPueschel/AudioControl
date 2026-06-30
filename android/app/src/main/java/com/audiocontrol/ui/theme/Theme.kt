@@ -1,19 +1,26 @@
 package com.audiocontrol.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            background = Color(0xFF0D0E10),
-            surface = Color(0xFF16181B),
-            primary = Color(0xFF5EC8D8),
-        ),
-        content = content,
-    )
+fun AppTheme(accentHue: Float = 189f, content: @Composable () -> Unit) {
+    val accent = accentFor(accentHue)
+    CompositionLocalProvider(LocalAccent provides accent) {
+        MaterialTheme(
+            colorScheme = darkColorScheme(
+                background = Color(Ink.bg),
+                surface = Color(Ink.panel),
+                surfaceVariant = Color(Ink.panel2),
+                primary = accent,
+                error = Color(Ink.err),
+                onBackground = Color(Ink.txt),
+                onSurface = Color(Ink.txt),
+            ),
+            content = content,
+        )
+    }
 }
