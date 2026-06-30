@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.audiocontrol.core.*
 import com.audiocontrol.data.AudioRepository
+import com.audiocontrol.data.ChannelState
 import com.audiocontrol.data.DspState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -17,6 +18,26 @@ class ControlViewModel(
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
+
+    private val hpfTypeOverride = mutableMapOf<String, FilterType>()
+    private val lpfTypeOverride = mutableMapOf<String, FilterType>()
+
+    private fun applyTypeOverrides(state: DspState?): DspState? {
+        if (state == null) return null
+        fun applyChannel(group: String, ch: ChannelState): ChannelState {
+            val hpfType = hpfTypeOverride[group]
+            val lpfType = lpfTypeOverride[group]
+            return if (hpfType == null && lpfType == null) ch
+            else ch.copy(
+                hpf = if (hpfType != null) ch.hpf.copy(type = hpfType.wire) else ch.hpf,
+                lpf = if (lpfType != null) ch.lpf.copy(type = lpfType.wire) else ch.lpf,
+            )
+        }
+        return state.copy(
+            mains = applyChannel("mains", state.mains),
+            subs = applyChannel("subs", state.subs),
+        )
+    }
 
     private val gateMaster = DragCommitGate()
     private val gateGain = DragCommitGate()
@@ -32,7 +53,7 @@ class ControlViewModel(
 
     private suspend fun loadState() {
         repo.state()
-            .onSuccess { _ui.update { s -> s.copy(dsp = it, conn = ConnState.CONNECTED, errorBanner = null) } }
+            .onSuccess { _ui.update { s -> s.copy(dsp = applyTypeOverrides(it), conn = ConnState.CONNECTED, errorBanner = null) } }
             .onFailure { _ui.update { s -> s.copy(conn = ConnState.DISCONNECTED, errorBanner = "Can't reach panel — pull to retry.") } }
     }
 
@@ -45,7 +66,7 @@ class ControlViewModel(
     private fun applyMutation(block: suspend () -> Result<DspState>) {
         viewModelScope.launch {
             block()
-                .onSuccess { st -> _ui.update { it.copy(dsp = st, conn = ConnState.CONNECTED, errorBanner = null) } }
+                .onSuccess { st -> _ui.update { it.copy(dsp = applyTypeOverrides(st), conn = ConnState.CONNECTED, errorBanner = null) } }
                 .onFailure { _ui.update { it.copy(conn = ConnState.DISCONNECTED, errorBanner = "Couldn't reach the panel — pull to retry.") } }
         }
     }
@@ -57,7 +78,7 @@ class ControlViewModel(
         viewModelScope.launch {
             try {
                 block()
-                    .onSuccess { st -> _ui.update { it.copy(dsp = st, conn = ConnState.CONNECTED, errorBanner = null) } }
+                    .onSuccess { st -> _ui.update { it.copy(dsp = applyTypeOverrides(st), conn = ConnState.CONNECTED, errorBanner = null) } }
                     .onFailure { _ui.update { it.copy(conn = ConnState.DISCONNECTED, errorBanner = "Couldn't reach the panel — pull to retry.") } }
             } finally {
                 inFlight = false
@@ -94,10 +115,23 @@ class ControlViewModel(
     fun setLpfFreq(group: String, v: Int) = ch(group)?.let { c -> applyMutation { repo.lpf(group, clampLpf(v, c.hpf.freq), null, null) } } ?: Unit
     fun toggleHpf(group: String) = ch(group)?.let { c -> applyMutation { repo.hpf(group, null, !c.hpf.bypass, null) } } ?: Unit
     fun toggleLpf(group: String) = ch(group)?.let { c -> applyMutation { repo.lpf(group, null, !c.lpf.bypass, null) } } ?: Unit
-    fun setHpfType(group: String, t: FilterType) = applyMutation { repo.hpf(group, null, null, t.wire) }
-    fun setLpfType(group: String, t: FilterType) = applyMutation { repo.lpf(group, null, null, t.wire) }
+    fun setHpfType(group: String, t: FilterType) {
+        hpfTypeOverride[group] = t
+        _ui.update { it.copy(dsp = applyTypeOverrides(it.dsp)) }
+        applyMutation { repo.hpf(group, null, null, t.wire) }
+    }
 
-    fun reset() = applyMutation { repo.reset() }
+    fun setLpfType(group: String, t: FilterType) {
+        lpfTypeOverride[group] = t
+        _ui.update { it.copy(dsp = applyTypeOverrides(it.dsp)) }
+        applyMutation { repo.lpf(group, null, null, t.wire) }
+    }
+
+    fun reset() {
+        hpfTypeOverride.clear()
+        lpfTypeOverride.clear()
+        applyMutation { repo.reset() }
+    }
 
     fun refresh() {
         _ui.update { it.copy(refreshing = true) }

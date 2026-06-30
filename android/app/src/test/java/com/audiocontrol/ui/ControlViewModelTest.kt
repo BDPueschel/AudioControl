@@ -1,5 +1,6 @@
 package com.audiocontrol.ui
 
+import com.audiocontrol.core.FilterType
 import com.audiocontrol.data.*
 import com.google.common.truth.Truth.assertThat
 import androidx.lifecycle.viewModelScope
@@ -99,5 +100,25 @@ class ControlViewModelTest {
 
         assertThat(calls).containsExactly(vA, vC).inOrder()
         vm.viewModelScope.cancel() // cancel viewModelScope; removes pending delay from shared scheduler
+    }
+
+    // I-4: HPF type override wins over server echo (backend still returns "lr4" for the old server).
+    @Test fun setHpfType_overrideBeatsServerEcho() = runTest(mainDispatcher) {
+        val repo = AudioRepository { api(base) } // fake setHpf returns base (type="lr4" default)
+        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        vm.start(); runCurrent()
+        vm.setHpfType("subs", FilterType.BUTTER12); runCurrent()
+        assertThat(vm.ui.value.dsp!!.subs.hpf.filterType).isEqualTo(FilterType.BUTTER12)
+        vm.viewModelScope.cancel()
+    }
+
+    // I-5: LPF type override wins over server echo.
+    @Test fun setLpfType_overrideBeatsServerEcho() = runTest(mainDispatcher) {
+        val repo = AudioRepository { api(base) } // fake setLpf returns base (type="lr4" default)
+        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        vm.start(); runCurrent()
+        vm.setLpfType("subs", FilterType.BUTTER24); runCurrent()
+        assertThat(vm.ui.value.dsp!!.subs.lpf.filterType).isEqualTo(FilterType.BUTTER24)
+        vm.viewModelScope.cancel()
     }
 }
