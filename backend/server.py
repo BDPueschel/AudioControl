@@ -72,13 +72,13 @@ def set_gain(group: str, req: GainRequest):
 @app.post("/api/{group}/hpf", response_model=DspState)
 def set_hpf(group: str, req: FilterRequest):
     _check(group)
-    return device.set_hpf(group, freq=req.freq, bypass=req.bypass)
+    return device.set_hpf(group, freq=req.freq, bypass=req.bypass, type=req.type)
 
 
 @app.post("/api/{group}/lpf", response_model=DspState)
 def set_lpf(group: str, req: FilterRequest):
     _check(group)
-    return device.set_lpf(group, freq=req.freq, bypass=req.bypass)
+    return device.set_lpf(group, freq=req.freq, bypass=req.bypass, type=req.type)
 
 
 @app.post("/api/reset", response_model=DspState)

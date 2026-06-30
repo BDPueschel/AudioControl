@@ -72,7 +72,7 @@ class DeviceController:
             self._save()
             return self.get_state()
 
-    def set_hpf(self, group: str, freq=None, bypass=None) -> DspState:
+    def set_hpf(self, group: str, freq=None, bypass=None, type=None) -> DspState:
         with self._lock:
             ch = self._channel(group)
             if freq is not None:
@@ -80,10 +80,12 @@ class DeviceController:
                 ch.hpf.freq = max(HPF_FREQ_MIN, min(gap_max, round(freq / 5) * 5))
             if bypass is not None:
                 ch.hpf.bypass = bypass
+            if type is not None:
+                ch.hpf.type = type
             self._save()
             return self.get_state()
 
-    def set_lpf(self, group: str, freq=None, bypass=None) -> DspState:
+    def set_lpf(self, group: str, freq=None, bypass=None, type=None) -> DspState:
         with self._lock:
             ch = self._channel(group)
             if freq is not None:
@@ -91,6 +93,8 @@ class DeviceController:
                 ch.lpf.freq = max(gap_min, min(LPF_FREQ_MAX, round(freq / 5) * 5))
             if bypass is not None:
                 ch.lpf.bypass = bypass
+            if type is not None:
+                ch.lpf.type = type
             self._save()
             return self.get_state()
 
