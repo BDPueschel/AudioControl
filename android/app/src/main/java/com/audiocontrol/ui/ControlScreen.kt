@@ -38,6 +38,7 @@ fun ControlScreen(
             onMute = vm::toggleMute,
             onReset = vm::reset,
             onOpenTheme = { showTheme = true },
+            onOpenSettings = { showSettings = true },
         )
         PullToRefreshBox(
             isRefreshing = ui.refreshing,
@@ -72,9 +73,6 @@ fun ControlScreen(
                     } else {
                         GainCard(settings.activeGroup, ch.gain, showRail = false, vm = vm)
                         CrossoverCard(settings.activeGroup, ch, vm = vm)
-                    }
-                    TextButton(onClick = { showSettings = true }) {
-                        Text("Server settings", fontSize = 11.sp, color = Color(Ink.txt3))
                     }
                 }
             }

@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.audiocontrol.ui.ConnState
@@ -23,22 +24,59 @@ import kotlinx.coroutines.delay
 fun ControlTopBar(
     conn: ConnState, muted: Boolean,
     onMute: () -> Unit, onReset: () -> Unit, onOpenTheme: () -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().background(Color(Ink.bg)).padding(horizontal = 18.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("AUDIO CONTROL CENTER", fontSize = 12.sp, color = Color(Ink.txt2))
-            Spacer(Modifier.width(14.dp))
-            MuteButton(muted, onMute)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TwoTapReset(onReset)
-            Spacer(Modifier.width(10.dp))
-            TextButton(onClick = onOpenTheme) { Text("Theme", fontSize = 11.sp, color = Color(Ink.txt2)) }
-            Spacer(Modifier.width(10.dp))
+        // Left group — weighted so right group never clips off-screen.
+        // Dot is leftmost (always visible), title ellipsizes if space is tight.
+        Row(
+            Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             AnimatedConnectionDot(conn)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "AUDIO CONTROL CENTER",
+                fontSize = 12.sp,
+                color = Color(Ink.txt2),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // Right group — natural/fixed width: Mute, Reset, overflow ⋮ menu.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MuteButton(muted, onMute)
+            Spacer(Modifier.width(6.dp))
+            TwoTapReset(onReset)
+            Spacer(Modifier.width(4.dp))
+            OverflowMenu(onOpenTheme = onOpenTheme, onOpenSettings = onOpenSettings)
+        }
+    }
+}
+
+@Composable
+private fun OverflowMenu(onOpenTheme: () -> Unit, onOpenSettings: () -> Unit) {
+    // material-icons-core not in deps — use ⋮ text trigger instead of MoreVert icon.
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { expanded = true }) {
+            Text("⋮", fontSize = 18.sp, color = Color(Ink.txt2))
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Theme", fontSize = 13.sp, color = Color(Ink.txt)) },
+                onClick = { expanded = false; onOpenTheme() },
+            )
+            DropdownMenuItem(
+                text = { Text("Server settings", fontSize = 13.sp, color = Color(Ink.txt)) },
+                onClick = { expanded = false; onOpenSettings() },
+            )
         }
     }
 }
