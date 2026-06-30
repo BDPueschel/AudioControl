@@ -59,7 +59,7 @@ class ControlViewModel(
     private suspend fun loadState() {
         repo.state()
             .onSuccess { _ui.update { s -> s.copy(dsp = applyTypeOverrides(it), conn = ConnState.CONNECTED, errorBanner = null) } }
-            .onFailure { _ui.update { s -> s.copy(conn = ConnState.DISCONNECTED, errorBanner = "Can't reach panel — pull to retry.") } }
+            .onFailure { _ui.update { s -> s.copy(conn = ConnState.DISCONNECTED, errorBanner = "Couldn't reach the panel — pull to retry.") } }
     }
 
     private suspend fun pollHealth() {

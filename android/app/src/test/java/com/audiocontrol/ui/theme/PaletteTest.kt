@@ -2,7 +2,6 @@ package com.audiocontrol.ui.theme
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
-import kotlin.math.abs
 
 class PaletteTest {
     @Test fun hslToArgb_cyanHueIsCyanish() {
