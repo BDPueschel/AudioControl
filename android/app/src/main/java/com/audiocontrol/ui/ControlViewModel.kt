@@ -41,6 +41,8 @@ class ControlViewModel(
 
     private val gateMaster = DragCommitGate()
     private val gateGain = DragCommitGate()
+    private var lastHpfDrag: Int? = null
+    private var lastLpfDrag: Int? = null
     private var inFlight = false
     private var pending: (suspend () -> Unit)? = null
 
@@ -119,14 +121,26 @@ class ControlViewModel(
     fun dragHpfFreq(group: String, freq: Int, release: Boolean) {
         val c = ch(group) ?: return
         val clamped = clampHpf(freq, c.lpf.freq)
-        coalesced { repo.hpf(group, clamped, null, null) }
+        if (release) {
+            lastHpfDrag = null
+            coalesced { repo.hpf(group, clamped, null, null) }
+        } else if (clamped != lastHpfDrag) {
+            lastHpfDrag = clamped
+            coalesced { repo.hpf(group, clamped, null, null) }
+        }
     }
 
     /** Drag the LPF node on the curve. See [dragHpfFreq] for coalescing semantics. */
     fun dragLpfFreq(group: String, freq: Int, release: Boolean) {
         val c = ch(group) ?: return
         val clamped = clampLpf(freq, c.hpf.freq)
-        coalesced { repo.lpf(group, clamped, null, null) }
+        if (release) {
+            lastLpfDrag = null
+            coalesced { repo.lpf(group, clamped, null, null) }
+        } else if (clamped != lastLpfDrag) {
+            lastLpfDrag = clamped
+            coalesced { repo.lpf(group, clamped, null, null) }
+        }
     }
     fun toggleHpf(group: String) = ch(group)?.let { c -> applyMutation { repo.hpf(group, null, !c.hpf.bypass, null) } } ?: Unit
     fun toggleLpf(group: String) = ch(group)?.let { c -> applyMutation { repo.lpf(group, null, !c.lpf.bypass, null) } } ?: Unit
