@@ -1,9 +1,11 @@
 package com.audiocontrol.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -153,34 +155,62 @@ fun LevelRail(fraction: Float, onDrag: (Float, Boolean) -> Unit, modifier: Modif
 @Composable
 fun BypassSwitch(on: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     val accent = LocalAccent.current
+    val knobStart by animateDpAsState(if (on) 21.dp else 3.dp, label = "bypassKnob")
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Text(if (on) "ENGAGED" else "BYPASSED", fontSize = 9.sp, color = Color(Ink.txt3))
         Spacer(Modifier.width(8.dp))
         Box(
-            Modifier.size(width = 42.dp, height = 24.dp).clip(RoundedCornerShape(14.dp))
-                .background(if (on) accent else Color(Ink.grey)),
-            contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart,
+            Modifier
+                .size(width = 42.dp, height = 24.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (on) accent else Color(Ink.grey))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                ) { onToggle() },
         ) {
-            TextButton(onClick = onToggle, contentPadding = PaddingValues(3.dp)) {
-                Box(Modifier.size(18.dp).clip(CircleShape).background(Color(Ink.txt)))
-            }
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = knobStart)
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(Color(Ink.txt)),
+            )
         }
     }
 }
 
 @Composable
-fun ValueEditorDialog(initial: String, onCommit: (Double?) -> Unit, onDismiss: () -> Unit) {
+fun ValueEditorDialog(
+    initial: String,
+    onCommit: (Double?) -> Unit,
+    onDismiss: () -> Unit,
+    prefix: String? = null,
+) {
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = { onCommit(text.toDoubleOrNull()) }) { Text("Set") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         text = {
-            OutlinedTextField(
-                value = text, onValueChange = { text = it },
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-            )
+            if (prefix != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(prefix, color = Color(Ink.txt))
+                    Spacer(Modifier.width(4.dp))
+                    OutlinedTextField(
+                        value = text, onValueChange = { text = it },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                    )
+                }
+            } else {
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                )
+            }
         },
     )
 }
