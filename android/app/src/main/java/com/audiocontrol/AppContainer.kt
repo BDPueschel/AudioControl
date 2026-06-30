@@ -23,6 +23,7 @@ data class SettingsActions(
 
 class AppContainer(context: Context, private val scope: CoroutineScope) {
     val settingsStore = SettingsStore(context.applicationContext)
+    val scenesStore = ScenesStore(context.applicationContext)
     val settings: StateFlow<Settings> =
         settingsStore.settings.stateIn(
             scope, SharingStarted.Eagerly,
@@ -43,6 +44,9 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
                 SettingsDefaults.DRAG_SENSITIVITY,
             ),
         )
+
+    val scenes: StateFlow<List<Scene>> =
+        scenesStore.scenes.stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     private val hostState: StateFlow<String> =
         settings.map { it.host }.stateIn(scope, SharingStarted.Eagerly, SettingsDefaults.HOST)
@@ -84,6 +88,14 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
     fun setDefaultFilterType(v: String) { scope.launch { settingsStore.setDefaultFilterType(v) } }
     fun setHaptics(v: Boolean) { scope.launch { settingsStore.setHaptics(v) } }
     fun setDragSensitivity(v: Float) { scope.launch { settingsStore.setDragSensitivity(v) } }
+
+    fun saveScene(name: String) {
+        val dsp = vm.currentDsp() ?: return
+        scope.launch { scenesStore.save(Scene(name, dsp)) }
+    }
+    fun deleteScene(name: String) { scope.launch { scenesStore.delete(name) } }
+    fun renameScene(old: String, new: String) { scope.launch { scenesStore.rename(old, new) } }
+    fun applyScene(scene: Scene) = vm.applyScene(scene)
 
     val settingsActions = SettingsActions(
         setHost = ::setHost,

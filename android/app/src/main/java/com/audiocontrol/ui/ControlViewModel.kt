@@ -6,6 +6,7 @@ import com.audiocontrol.core.*
 import com.audiocontrol.data.AudioRepository
 import com.audiocontrol.data.ChannelState
 import com.audiocontrol.data.DspState
+import com.audiocontrol.data.Scene
 import com.audiocontrol.data.Settings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -182,6 +183,50 @@ class ControlViewModel(
     fun refresh() {
         _ui.update { it.copy(refreshing = true) }
         viewModelScope.launch { loadState(); pollHealth(); _ui.update { it.copy(refreshing = false) } }
+    }
+
+    /** Returns the current DSP state, or null if no state has been loaded yet. */
+    fun currentDsp(): DspState? = ui.value.dsp
+
+    /**
+     * Replay [scene]'s DSP values through the repo IN ORDER — master-gain, mute, then for each
+     * group (mains, subs): gain, hpf(freq+bypass+type), lpf(freq+bypass+type).
+     *
+     * Runs in a SINGLE sequential coroutine (no fan-out via applyMutation) so calls never
+     * interleave with each other.  On any failure: DISCONNECTED + standard error banner.
+     * On full success: UI updated from the last response with type-overrides applied.
+     */
+    fun applyScene(scene: Scene) {
+        viewModelScope.launch {
+            // Set type overrides upfront so applyTypeOverrides reflects the scene's filter types.
+            for (group in listOf("mains", "subs")) {
+                val ch = if (group == "mains") scene.dsp.mains else scene.dsp.subs
+                hpfTypeOverride[group] = FilterType.fromWire(ch.hpf.type)
+                lpfTypeOverride[group] = FilterType.fromWire(ch.lpf.type)
+            }
+
+            // Helper: unwrap a Result, or set error state and bail.
+            fun <T> step(r: Result<T>): T? = r.onFailure {
+                _ui.update {
+                    it.copy(
+                        conn = ConnState.DISCONNECTED,
+                        errorBanner = "Couldn't reach the panel — pull to retry.",
+                    )
+                }
+            }.getOrNull()
+
+            var last = step(repo.masterGain(scene.dsp.master_gain)) ?: return@launch
+            last = step(repo.mute(scene.dsp.mute)) ?: return@launch
+            for (group in listOf("mains", "subs")) {
+                val ch = if (group == "mains") scene.dsp.mains else scene.dsp.subs
+                last = step(repo.gain(group, ch.gain)) ?: return@launch
+                last = step(repo.hpf(group, ch.hpf.freq, ch.hpf.bypass, ch.hpf.type)) ?: return@launch
+                last = step(repo.lpf(group, ch.lpf.freq, ch.lpf.bypass, ch.lpf.type)) ?: return@launch
+            }
+            _ui.update {
+                it.copy(dsp = applyTypeOverrides(last), conn = ConnState.CONNECTED, errorBanner = null)
+            }
+        }
     }
 
     val activeGroup: StateFlow<String> = activeGroupFlow

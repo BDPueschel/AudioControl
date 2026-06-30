@@ -14,6 +14,85 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 
+// ---------------------------------------------------------------------------
+// Recording fake for applyScene tests
+// ---------------------------------------------------------------------------
+private data class GainCall(val group: String, val value: Double)
+private data class FilterCall(val group: String, val freq: Int?, val bypass: Boolean?, val type: String?)
+
+/**
+ * An [AudioApi] that records every mutating call and returns state that reflects the inputs,
+ * so the final vm.ui.value.dsp mirrors what was replayed.
+ */
+private class RecordingApi(initialState: DspState) : AudioApi {
+    var state = initialState
+    val masterGainCalls = mutableListOf<Double>()
+    val muteCalls = mutableListOf<Boolean>()
+    val gainCalls = mutableListOf<GainCall>()
+    val hpfCalls = mutableListOf<FilterCall>()
+    val lpfCalls = mutableListOf<FilterCall>()
+
+    override suspend fun getHealth() = Health("ok", "recording")
+    override suspend fun getState() = state
+
+    override suspend fun setMasterGain(body: GainBody): DspState {
+        masterGainCalls += body.value
+        state = state.copy(master_gain = body.value)
+        return state
+    }
+
+    override suspend fun setMute(body: MuteBody): DspState {
+        muteCalls += body.value
+        state = state.copy(mute = body.value)
+        return state
+    }
+
+    override suspend fun setGain(group: String, body: GainBody): DspState {
+        gainCalls += GainCall(group, body.value)
+        state = when (group) {
+            "mains" -> state.copy(mains = state.mains.copy(gain = body.value))
+            else    -> state.copy(subs  = state.subs.copy(gain  = body.value))
+        }
+        return state
+    }
+
+    override suspend fun setHpf(group: String, body: FilterBody): DspState {
+        hpfCalls += FilterCall(group, body.freq, body.bypass, body.type)
+        state = when (group) {
+            "mains" -> state.copy(mains = state.mains.copy(hpf = state.mains.hpf.copy(
+                freq   = body.freq   ?: state.mains.hpf.freq,
+                bypass = body.bypass ?: state.mains.hpf.bypass,
+                type   = body.type   ?: state.mains.hpf.type,
+            )))
+            else    -> state.copy(subs  = state.subs.copy(hpf  = state.subs.hpf.copy(
+                freq   = body.freq   ?: state.subs.hpf.freq,
+                bypass = body.bypass ?: state.subs.hpf.bypass,
+                type   = body.type   ?: state.subs.hpf.type,
+            )))
+        }
+        return state
+    }
+
+    override suspend fun setLpf(group: String, body: FilterBody): DspState {
+        lpfCalls += FilterCall(group, body.freq, body.bypass, body.type)
+        state = when (group) {
+            "mains" -> state.copy(mains = state.mains.copy(lpf = state.mains.lpf.copy(
+                freq   = body.freq   ?: state.mains.lpf.freq,
+                bypass = body.bypass ?: state.mains.lpf.bypass,
+                type   = body.type   ?: state.mains.lpf.type,
+            )))
+            else    -> state.copy(subs  = state.subs.copy(lpf  = state.subs.lpf.copy(
+                freq   = body.freq   ?: state.subs.lpf.freq,
+                bypass = body.bypass ?: state.subs.lpf.bypass,
+                type   = body.type   ?: state.subs.lpf.type,
+            )))
+        }
+        return state
+    }
+
+    override suspend fun reset() = state
+}
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class ControlViewModelTest {
     private val base = DspState(
@@ -161,6 +240,56 @@ class ControlViewModelTest {
         vm.start(); runCurrent()
         vm.reset(); runCurrent()
         assertThat(vm.ui.value.dsp!!.subs.hpf.filterType).isEqualTo(FilterType.fromWire("butter12"))
+        vm.viewModelScope.cancel()
+    }
+
+    // SC-1: applyScene replays all 6 endpoint categories in order and updates the UI to the scene.
+    @Test fun applyScene_replaysAllValues() = runTest(mainDispatcher) {
+        val initial = DspState(
+            master_gain = -45.0, mute = false,
+            mains = ChannelState(0.0,  FilterState(80,  true,  "lr4"), FilterState(120, true,  "lr4")),
+            subs  = ChannelState(4.0,  FilterState(45,  false, "lr4"), FilterState(200, false, "lr4")),
+        )
+        val recording = RecordingApi(initial)
+        val repo = AudioRepository { recording }
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
+        vm.start(); runCurrent()
+
+        val scene = Scene(
+            name = "Night",
+            dsp = DspState(
+                master_gain = -33.0,
+                mute        = true,
+                mains = ChannelState(1.0, FilterState(60,  false, "lr4"),      FilterState(100, false, "lr4")),
+                subs  = ChannelState(2.0, FilterState(55,  false, "butter12"), FilterState(120, false, "lr4")),
+            ),
+        )
+
+        vm.applyScene(scene)
+        runCurrent()
+
+        // All 6 categories received exactly one call
+        assertThat(recording.masterGainCalls).containsExactly(-33.0)
+        assertThat(recording.muteCalls).containsExactly(true)
+        assertThat(recording.gainCalls).hasSize(2)   // mains + subs
+        assertThat(recording.hpfCalls).hasSize(2)    // mains + subs
+        assertThat(recording.lpfCalls).hasSize(2)    // mains + subs
+
+        // Correct group ordering: mains before subs
+        assertThat(recording.gainCalls[0].group).isEqualTo("mains")
+        assertThat(recording.gainCalls[1].group).isEqualTo("subs")
+
+        // subs HPF carries the distinctive values from the scene
+        val subsHpf = recording.hpfCalls.first { it.group == "subs" }
+        assertThat(subsHpf.freq).isEqualTo(55)
+        assertThat(subsHpf.type).isEqualTo("butter12")
+
+        // UI state reflects the scene: master, filter type, connection
+        assertThat(vm.ui.value.dsp?.master_gain).isEqualTo(-33.0)
+        assertThat(vm.ui.value.dsp?.subs?.hpf?.filterType).isEqualTo(FilterType.BUTTER12)
+        assertThat(vm.ui.value.conn).isEqualTo(ConnState.CONNECTED)
+        assertThat(vm.ui.value.errorBanner).isNull()
+
         vm.viewModelScope.cancel()
     }
 }
