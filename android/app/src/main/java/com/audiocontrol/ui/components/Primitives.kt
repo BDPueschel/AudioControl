@@ -2,6 +2,7 @@ package com.audiocontrol.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -10,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -20,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.audiocontrol.ui.theme.Ink
 import com.audiocontrol.ui.theme.LocalAccent
-import kotlin.math.roundToInt
 
 @Composable
 fun StepperRow(
@@ -33,17 +34,19 @@ fun StepperRow(
         StepBtn("−", stepLabel, enabled, onMinus)
         Column(
             Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                .then(if (enabled) Modifier else Modifier).padding(vertical = 4.dp),
+                .alpha(if (enabled) 1f else 0.38f).padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row(
+                Modifier.clickable(enabled = enabled, onClick = onTapValue),
+                verticalAlignment = Alignment.Bottom
+            ) {
                 Text(value, fontSize = 26.sp, fontWeight = FontWeight.Bold,
                     color = if (positive) accent else Color(Ink.txt),
                     modifier = Modifier.clip(RoundedCornerShape(8.dp)))
                 Spacer(Modifier.width(4.dp))
                 Text(unit, fontSize = 12.sp, color = Color(Ink.txt3))
             }
-            TextButton(onClick = onTapValue, enabled = enabled) { Text("edit", fontSize = 9.sp, color = Color(Ink.txt3)) }
         }
         StepBtn("+", stepLabel, enabled, onPlus)
     }
@@ -76,6 +79,7 @@ fun LevelRail(fraction: Float, onDrag: (Float, Boolean) -> Unit, modifier: Modif
             .pointerInput(Unit) {
                 detectHorizontalDragGestures(
                     onDragEnd = { onDrag(current, true) },
+                    onDragCancel = { onDrag(current, true) },
                 ) { _, dragAmount ->
                     // half-sensitivity relative drag
                     current = (current + (dragAmount / widthPx) * 0.5f).coerceIn(0f, 1f)
