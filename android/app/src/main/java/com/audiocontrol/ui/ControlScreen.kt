@@ -31,7 +31,7 @@ fun ControlScreen(
     var showSettings by remember { mutableStateOf(false) }
     val pull = rememberPullToRefreshState()
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
         ControlTopBar(
             conn = ui.conn,
             muted = ui.dsp?.mute == true,

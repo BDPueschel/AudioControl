@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,8 +28,9 @@ fun ControlTopBar(
     onMute: () -> Unit, onReset: () -> Unit, onOpenTheme: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    val accent = LocalAccent.current
     Row(
-        Modifier.fillMaxWidth().background(Color(Ink.bg)).padding(horizontal = 18.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().background(Color(Ink.bg)).padding(horizontal = 18.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // Left group — weighted so right group never clips off-screen.
@@ -40,43 +43,30 @@ fun ControlTopBar(
             Spacer(Modifier.width(10.dp))
             Text(
                 "AUDIO CONTROL CENTER",
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 color = Color(Ink.txt2),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // Right group — natural/fixed width: Mute, Reset, overflow ⋮ menu.
+        // Right group: Mute pill, Reset pill, accent-circle theme button, settings cog.
         Row(verticalAlignment = Alignment.CenterVertically) {
             MuteButton(muted, onMute)
             Spacer(Modifier.width(6.dp))
             TwoTapReset(onReset)
-            Spacer(Modifier.width(4.dp))
-            OverflowMenu(onOpenTheme = onOpenTheme, onOpenSettings = onOpenSettings)
-        }
-    }
-}
-
-@Composable
-private fun OverflowMenu(onOpenTheme: () -> Unit, onOpenSettings: () -> Unit) {
-    // material-icons-core not in deps — use ⋮ text trigger instead of MoreVert icon.
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        TextButton(onClick = { expanded = true }) {
-            Text("⋮", fontSize = 18.sp, color = Color(Ink.txt2))
-        }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            DropdownMenuItem(
-                text = { Text("Theme", fontSize = 13.sp, color = Color(Ink.txt)) },
-                onClick = { expanded = false; onOpenTheme() },
-            )
-            DropdownMenuItem(
-                text = { Text("Server settings", fontSize = 13.sp, color = Color(Ink.txt)) },
-                onClick = { expanded = false; onOpenSettings() },
-            )
+            // Theme: compact accent-circle swatch button (tap → theme sheet)
+            IconButton(onClick = onOpenTheme) {
+                Box(Modifier.size(18.dp).clip(CircleShape).background(accent))
+            }
+            // Settings cog
+            IconButton(onClick = onOpenSettings) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Server settings",
+                    tint = Color(Ink.txt2),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }

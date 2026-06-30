@@ -16,10 +16,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
 import com.audiocontrol.ui.theme.Ink
 import com.audiocontrol.ui.theme.LocalAccent
 
@@ -33,10 +36,13 @@ fun StepperRow(
     onDragRelease: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
+    val density = LocalDensity.current
     // rememberUpdatedState ensures the pointerInput block (keyed on Unit, never restarted)
     // always calls the latest lambda even as master/gain recomposes during a live drag.
     val latestOnDragStep by rememberUpdatedState(onDragStep)
     val latestOnDragRelease by rememberUpdatedState(onDragRelease)
+    var dragging by remember { mutableStateOf(false) }
+
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         StepBtn("−", stepLabel, enabled, onMinus)
         Column(
@@ -46,18 +52,44 @@ fun StepperRow(
         ) {
             val dragMod = if (dragStepEnabled) {
                 Modifier.pointerInput(Unit) {
-                    val thresholdPx = 14.dp.toPx()
+                    // ~28 dp per step = half the original 14 dp sensitivity
+                    val thresholdPx = 28.dp.toPx()
                     var accum = 0f
                     detectHorizontalDragGestures(
-                        onDragEnd = { accum = 0f; latestOnDragRelease() },
-                        onDragCancel = { accum = 0f; latestOnDragRelease() },
+                        onDragEnd = { accum = 0f; dragging = false; latestOnDragRelease() },
+                        onDragCancel = { accum = 0f; dragging = false; latestOnDragRelease() },
                     ) { _, dx ->
+                        dragging = true
                         accum += dx
                         while (accum >= thresholdPx) { latestOnDragStep(+1); accum -= thresholdPx }
                         while (accum <= -thresholdPx) { latestOnDragStep(-1); accum += thresholdPx }
                     }
                 }
             } else Modifier
+
+            // Floating value bubble shown above the drag area while dragging
+            if (dragging && dragStepEnabled) {
+                Popup(
+                    alignment = Alignment.TopCenter,
+                    offset = with(density) { IntOffset(0, -56.dp.roundToPx()) },
+                ) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(Ink.panel2))
+                            .border(1.dp, accent, RoundedCornerShape(12.dp))
+                            .padding(vertical = 8.dp, horizontal = 16.dp),
+                    ) {
+                        Text(
+                            "$value $unit",
+                            color = accent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
+            }
+
             Row(
                 dragMod.clickable(enabled = enabled, onClick = onTapValue),
                 verticalAlignment = Alignment.Bottom
