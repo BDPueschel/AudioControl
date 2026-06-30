@@ -116,3 +116,45 @@ def test_reset_preserves_master_resets_channels():
     assert s["master_gain"] == -30.0      # preserved
     assert s["subs"]["gain"] == 4.0       # reset to default
     assert s["mains"]["hpf"]["bypass"] is True
+
+
+# --- filter type field -----------------------------------------------------------
+
+def test_hpf_type_persists():
+    s = client.post("/api/subs/hpf", json={"type": "butter24"}).json()
+    assert s["subs"]["hpf"]["type"] == "butter24"
+
+
+def test_lpf_type_persists():
+    s = client.post("/api/subs/lpf", json={"type": "bessel12"}).json()
+    assert s["subs"]["lpf"]["type"] == "bessel12"
+
+
+def test_hpf_type_default_is_lr4():
+    # Reset type to known state, then verify default field is present
+    s = client.post("/api/mains/hpf", json={"type": "lr4"}).json()
+    assert s["mains"]["hpf"]["type"] == "lr4"
+
+
+def test_hpf_freq_only_does_not_reset_type():
+    # Set a non-default type first
+    client.post("/api/subs/hpf", json={"type": "lr2"})
+    # Update freq only (no type in body) — type must not revert to default
+    s = client.post("/api/subs/hpf", json={"freq": 50}).json()
+    assert s["subs"]["hpf"]["type"] == "lr2"
+
+
+def test_lpf_bypass_only_does_not_reset_type():
+    # Set a non-default type first
+    client.post("/api/subs/lpf", json={"type": "bessel24"})
+    # Update bypass only (no type in body) — type must not revert to default
+    s = client.post("/api/subs/lpf", json={"bypass": True}).json()
+    assert s["subs"]["lpf"]["type"] == "bessel24"
+
+
+def test_hpf_type_independent_per_group():
+    client.post("/api/mains/hpf", json={"type": "butter12"})
+    client.post("/api/subs/hpf", json={"type": "lr4"})
+    s = client.get("/api/state").json()
+    assert s["mains"]["hpf"]["type"] == "butter12"
+    assert s["subs"]["hpf"]["type"] == "lr4"

@@ -145,13 +145,19 @@ class MinidspController(DeviceController):
         self._write_gain(group)
         return state
 
-    def set_hpf(self, group, freq=None, bypass=None):
-        state = super().set_hpf(group, freq, bypass)
+    def set_hpf(self, group, freq=None, bypass=None, type=None):
+        # TODO: biquad coefficient math still emits LR4 regardless of `type`.
+        # Per-family/slope coefficient generation is a deferred follow-up
+        # (group-0 budget set per docs/spike-crossover-results.md).
+        state = super().set_hpf(group, freq, bypass, type)
         self._write_hpf(group)
         return state
 
-    def set_lpf(self, group, freq=None, bypass=None):
-        state = super().set_lpf(group, freq, bypass)
+    def set_lpf(self, group, freq=None, bypass=None, type=None):
+        # TODO: biquad coefficient math still emits LR4 regardless of `type`.
+        # Per-family/slope coefficient generation is a deferred follow-up
+        # (group-0 budget set per docs/spike-crossover-results.md).
+        state = super().set_lpf(group, freq, bypass, type)
         self._write_lpf(group)
         return state
 
@@ -169,7 +175,7 @@ class MinidspController(DeviceController):
         m = re.search(r"Gain\(\s*(-?\d+(?:\.\d+)?)\s*\)", status)
         if m:
             dev_master = float(m.group(1))
-            target = max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(dev_master)))
+            target = max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(dev_master * 2) / 2))
             self._state.master_gain = target
             self._save()
             if target < dev_master:  # device louder than cap -> lower it

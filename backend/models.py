@@ -4,6 +4,7 @@ from pydantic import BaseModel
 class FilterState(BaseModel):
     freq: int
     bypass: bool
+    type: str = "lr4"
 
 
 class ChannelState(BaseModel):
@@ -70,3 +71,4 @@ class PlayTrackRequest(BaseModel):
 class FilterRequest(BaseModel):
     freq: int | None = None
     bypass: bool | None = None
+    type: str | None = None
