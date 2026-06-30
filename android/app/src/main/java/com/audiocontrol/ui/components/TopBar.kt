@@ -49,7 +49,7 @@ private fun MuteButton(muted: Boolean, onMute: () -> Unit) {
         onClick = onMute,
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = if (muted) Color(Ink.err) else Color(Ink.panel),
-            contentColor = if (muted) Color.White else Color(Ink.txt2),
+            contentColor = if (muted) Color(Ink.txt) else Color(Ink.txt2),
         ),
     ) { Text(if (muted) "Muted" else "Mute", fontSize = 11.sp) }
 }
@@ -94,7 +94,7 @@ fun AnimatedConnectionDot(conn: ConnState) {
 fun ErrorBanner(text: String?) {
     if (text == null) return
     Box(
-        Modifier.fillMaxWidth().background(Color(Ink.err).copy(alpha = 0.12f))
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color(Ink.err).copy(alpha = 0.12f))
             .border(1.dp, Color(Ink.err).copy(alpha = 0.4f), RoundedCornerShape(10.dp))
             .padding(horizontal = 16.dp, vertical = 10.dp),
     ) { Text(text, fontSize = 12.sp, color = Color(Ink.err)) }
