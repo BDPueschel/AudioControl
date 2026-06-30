@@ -31,7 +31,7 @@ def test_gain_clamps():
 
 def test_master_caps():
     d = DeviceController()
-    assert d.set_master_gain(0.0).master_gain == -25.0
+    assert d.set_master_gain(0.0).master_gain == -20.0
 
 
 def test_reset_preserves_master():

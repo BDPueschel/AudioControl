@@ -13,7 +13,7 @@ class ChannelState(BaseModel):
 
 
 class DspState(BaseModel):
-    master_gain: float    # -60.0 to -25.0 (safety cap), step 1.0
+    master_gain: float    # -60.0 to -20.0 (safety cap), step 1.0
     mute: bool            # master mute
     mains: ChannelState   # outputs 0,1 (Main L/R)
     subs: ChannelState    # outputs 2,3 (Sub L/R)

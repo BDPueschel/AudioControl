@@ -1,4 +1,5 @@
 import copy
+import threading
 from pathlib import Path
 
 from .models import DspState, DEFAULTS
@@ -6,7 +7,7 @@ from .models import DspState, DEFAULTS
 # Safety cap on master output. The miniDSP itself goes to 0 dB (full output),
 # but we never send louder than this to prevent accidental ear-blowing jumps.
 MASTER_GAIN_MIN = -60.0
-MASTER_GAIN_MAX = -25.0
+MASTER_GAIN_MAX = -20.0
 
 CHANNEL_GAIN_MIN = -24.0
 CHANNEL_GAIN_MAX = 12.0
@@ -22,6 +23,7 @@ class DeviceController:
     Subclass for real CLI/shim integration."""
 
     def __init__(self, state_path=None):
+        self._lock = threading.RLock()
         self._state_path = Path(state_path) if state_path else None
         self._state = self._load()
 
@@ -50,49 +52,55 @@ class DeviceController:
 
     # --- mutations -----------------------------------------------------------
     def set_master_gain(self, value: float) -> DspState:
-        self._state.master_gain = float(
-            max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(value)))
-        )
-        self._save()
-        return self.get_state()
+        with self._lock:
+            self._state.master_gain = float(
+                max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(value)))
+            )
+            self._save()
+            return self.get_state()
 
     def set_mute(self, value: bool) -> DspState:
-        self._state.mute = bool(value)
-        self._save()
-        return self.get_state()
+        with self._lock:
+            self._state.mute = bool(value)
+            self._save()
+            return self.get_state()
 
     def set_gain(self, group: str, value: float) -> DspState:
-        ch = self._channel(group)
-        ch.gain = max(CHANNEL_GAIN_MIN, min(CHANNEL_GAIN_MAX, round(value * 2) / 2))
-        self._save()
-        return self.get_state()
+        with self._lock:
+            ch = self._channel(group)
+            ch.gain = max(CHANNEL_GAIN_MIN, min(CHANNEL_GAIN_MAX, round(value * 2) / 2))
+            self._save()
+            return self.get_state()
 
     def set_hpf(self, group: str, freq=None, bypass=None) -> DspState:
-        ch = self._channel(group)
-        if freq is not None:
-            gap_max = ch.lpf.freq - FILTER_GAP
-            ch.hpf.freq = max(HPF_FREQ_MIN, min(gap_max, round(freq / 5) * 5))
-        if bypass is not None:
-            ch.hpf.bypass = bypass
-        self._save()
-        return self.get_state()
+        with self._lock:
+            ch = self._channel(group)
+            if freq is not None:
+                gap_max = ch.lpf.freq - FILTER_GAP
+                ch.hpf.freq = max(HPF_FREQ_MIN, min(gap_max, round(freq / 5) * 5))
+            if bypass is not None:
+                ch.hpf.bypass = bypass
+            self._save()
+            return self.get_state()
 
     def set_lpf(self, group: str, freq=None, bypass=None) -> DspState:
-        ch = self._channel(group)
-        if freq is not None:
-            gap_min = ch.hpf.freq + FILTER_GAP
-            ch.lpf.freq = max(gap_min, min(LPF_FREQ_MAX, round(freq / 5) * 5))
-        if bypass is not None:
-            ch.lpf.bypass = bypass
-        self._save()
-        return self.get_state()
+        with self._lock:
+            ch = self._channel(group)
+            if freq is not None:
+                gap_min = ch.hpf.freq + FILTER_GAP
+                ch.lpf.freq = max(gap_min, min(LPF_FREQ_MAX, round(freq / 5) * 5))
+            if bypass is not None:
+                ch.lpf.bypass = bypass
+            self._save()
+            return self.get_state()
 
     def reset(self) -> DspState:
-        master = self._state.master_gain  # preserve master volume
-        self._state = copy.deepcopy(DEFAULTS)
-        self._state.master_gain = master
-        self._save()
-        return self.get_state()
+        with self._lock:
+            master = self._state.master_gain
+            self._state = copy.deepcopy(DEFAULTS)
+            self._state.master_gain = master
+            self._save()
+            return self.get_state()
 
     @property
     def device_type(self) -> str:

@@ -181,16 +181,18 @@ class MinidspController(DeviceController):
         self._push_channels()
 
     def push_state(self):
-        self._run("gain", "--", str(self._state.master_gain))
-        self._run("mute", "on" if self._state.mute else "off")
-        self._push_channels()
-        return self.get_state()
+        with self._lock:
+            self._run("gain", "--", str(self._state.master_gain))
+            self._run("mute", "on" if self._state.mute else "off")
+            self._push_channels()
+            return self.get_state()
 
     def _push_channels(self):
-        for group in GROUP_OUTPUTS:
-            self._write_gain(group)
-            self._write_hpf(group)
-            self._write_lpf(group)
+        with self._lock:
+            for group in GROUP_OUTPUTS:
+                self._write_gain(group)
+                self._write_hpf(group)
+                self._write_lpf(group)
 
     @property
     def device_type(self) -> str:

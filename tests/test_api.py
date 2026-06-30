@@ -58,8 +58,8 @@ def test_quickplay_add_and_delete(tmp_path, monkeypatch):
     assert all(p["id"] != pid for p in after)
 
 
-def test_master_gain_caps_at_minus_25():
-    assert client.post("/api/master-gain", json={"value": 10.0}).json()["master_gain"] == -25.0
+def test_master_gain_caps_at_minus_20():
+    assert client.post("/api/master-gain", json={"value": 10.0}).json()["master_gain"] == -20.0
     assert client.post("/api/master-gain", json={"value": -100.0}).json()["master_gain"] == -60.0
 
 
