@@ -18,7 +18,20 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
     private val hostState: StateFlow<String> =
         settings.map { it.host }.stateIn(scope, SharingStarted.Eagerly, SettingsDefaults.HOST)
 
-    private val repo = AudioRepository { buildApi(baseUrl(hostState.value)) }
+    // Cache the AudioApi by host: rebuild only when the host string changes.
+    // synchronized(this) is sufficient thread-safety for this single-activity app.
+    private var cachedHost: String? = null
+    private var cachedApi: AudioApi? = null
+    private fun getOrBuildApi(): AudioApi = synchronized(this) {
+        val host = hostState.value
+        if (host != cachedHost || cachedApi == null) {
+            cachedApi = buildApi(baseUrl(host))
+            cachedHost = host
+        }
+        cachedApi!!
+    }
+
+    private val repo = AudioRepository { getOrBuildApi() }
 
     private val activeGroup: StateFlow<String> =
         settings.map { it.activeGroup }.stateIn(scope, SharingStarted.Eagerly, SettingsDefaults.ACTIVE_GROUP)

@@ -28,8 +28,15 @@ fun StepperRow(
     value: String, unit: String, stepLabel: String, positive: Boolean,
     onMinus: () -> Unit, onPlus: () -> Unit, onTapValue: () -> Unit,
     modifier: Modifier = Modifier, enabled: Boolean = true,
+    dragStepEnabled: Boolean = false,
+    onDragStep: (Int) -> Unit = {},
+    onDragRelease: () -> Unit = {},
 ) {
     val accent = LocalAccent.current
+    // rememberUpdatedState ensures the pointerInput block (keyed on Unit, never restarted)
+    // always calls the latest lambda even as master/gain recomposes during a live drag.
+    val latestOnDragStep by rememberUpdatedState(onDragStep)
+    val latestOnDragRelease by rememberUpdatedState(onDragRelease)
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         StepBtn("−", stepLabel, enabled, onMinus)
         Column(
@@ -37,8 +44,22 @@ fun StepperRow(
                 .alpha(if (enabled) 1f else 0.38f).padding(vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val dragMod = if (dragStepEnabled) {
+                Modifier.pointerInput(Unit) {
+                    val thresholdPx = 14.dp.toPx()
+                    var accum = 0f
+                    detectHorizontalDragGestures(
+                        onDragEnd = { accum = 0f; latestOnDragRelease() },
+                        onDragCancel = { accum = 0f; latestOnDragRelease() },
+                    ) { _, dx ->
+                        accum += dx
+                        while (accum >= thresholdPx) { latestOnDragStep(+1); accum -= thresholdPx }
+                        while (accum <= -thresholdPx) { latestOnDragStep(-1); accum += thresholdPx }
+                    }
+                }
+            } else Modifier
             Row(
-                Modifier.clickable(enabled = enabled, onClick = onTapValue),
+                dragMod.clickable(enabled = enabled, onClick = onTapValue),
                 verticalAlignment = Alignment.Bottom
             ) {
                 Text(value, fontSize = 26.sp, fontWeight = FontWeight.Bold,

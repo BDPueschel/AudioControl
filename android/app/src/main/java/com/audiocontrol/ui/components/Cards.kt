@@ -39,6 +39,9 @@ fun MasterCard(master: Double, showRail: Boolean, vm: ControlViewModel) {
         StepperRow(
             value = fmtDb(master), unit = "dB", stepLabel = "1 dB", positive = false,
             onMinus = { vm.nudgeMaster(-1.0) }, onPlus = { vm.nudgeMaster(1.0) }, onTapValue = { editing = true },
+            dragStepEnabled = !showRail,
+            onDragStep = { dir -> vm.dragMaster(Ranges.MASTER.clampStep(master + dir * Ranges.MASTER.step), release = false) },
+            onDragRelease = { vm.dragMaster(master, release = true) },
         )
         if (showRail) {
             Spacer(Modifier.height(16.dp))
@@ -59,6 +62,9 @@ fun GainCard(group: String, gain: Double, showRail: Boolean, vm: ControlViewMode
         StepperRow(
             value = fmtDb(gain), unit = "dB", stepLabel = "0.5", positive = gain > 0,
             onMinus = { vm.nudgeGain(group, -0.5) }, onPlus = { vm.nudgeGain(group, 0.5) }, onTapValue = { editing = true },
+            dragStepEnabled = !showRail,
+            onDragStep = { dir -> vm.dragGain(group, Ranges.GAIN.clampStep(gain + dir * Ranges.GAIN.step), release = false) },
+            onDragRelease = { vm.dragGain(group, gain, release = true) },
         )
         if (showRail) {
             Spacer(Modifier.height(16.dp))
