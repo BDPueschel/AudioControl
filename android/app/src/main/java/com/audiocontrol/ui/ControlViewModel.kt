@@ -6,6 +6,7 @@ import com.audiocontrol.core.*
 import com.audiocontrol.data.AudioRepository
 import com.audiocontrol.data.ChannelState
 import com.audiocontrol.data.DspState
+import com.audiocontrol.data.Settings
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -14,6 +15,7 @@ class ControlViewModel(
     private val repo: AudioRepository,
     private val activeGroupFlow: StateFlow<String>,
     private val onActiveGroupChange: (String) -> Unit,
+    private val settings: StateFlow<Settings>,
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(UiState())
@@ -91,10 +93,12 @@ class ControlViewModel(
 
     private val dsp get() = _ui.value.dsp
 
-    fun nudgeMaster(d: Double) = dsp?.let { applyMutation { repo.masterGain(Ranges.MASTER.clampStep(it.master_gain + d)) } } ?: Unit
-    fun setMaster(v: Double) = applyMutation { repo.masterGain(Ranges.MASTER.clampStep(v)) }
+    fun nudgeMaster(d: Double) = dsp?.let {
+        applyMutation { repo.masterGain(clampSnap(it.master_gain + d, -60.0, settings.value.masterCap, settings.value.stepMaster)) }
+    } ?: Unit
+    fun setMaster(v: Double) = applyMutation { repo.masterGain(clampSnap(v, -60.0, settings.value.masterCap, settings.value.stepMaster)) }
     fun dragMaster(v: Double, release: Boolean) {
-        val target = Ranges.MASTER.clampStep(v)
+        val target = clampSnap(v, -60.0, settings.value.masterCap, settings.value.stepMaster)
         if (release) { gateMaster.reset(target); coalesced { repo.masterGain(target) } }
         else if (gateMaster.shouldEmit(target, Ranges.MASTER.step * 2)) coalesced { repo.masterGain(target) }
     }
@@ -103,24 +107,34 @@ class ControlViewModel(
 
     private fun ch(group: String) = if (group == "mains") dsp?.mains else dsp?.subs
 
-    fun nudgeGain(group: String, d: Double) = ch(group)?.let { applyMutation { repo.gain(group, Ranges.GAIN.clampStep(it.gain + d)) } } ?: Unit
-    fun setGain(group: String, v: Double) = applyMutation { repo.gain(group, Ranges.GAIN.clampStep(v)) }
+    fun nudgeGain(group: String, d: Double) = ch(group)?.let {
+        applyMutation { repo.gain(group, clampSnap(it.gain + d, -24.0, 12.0, settings.value.stepGain)) }
+    } ?: Unit
+    fun setGain(group: String, v: Double) = applyMutation { repo.gain(group, clampSnap(v, -24.0, 12.0, settings.value.stepGain)) }
     fun dragGain(group: String, v: Double, release: Boolean) {
-        val target = Ranges.GAIN.clampStep(v)
+        val target = clampSnap(v, -24.0, 12.0, settings.value.stepGain)
         if (release) { gateGain.reset(target); coalesced { repo.gain(group, target) } }
         else if (gateGain.shouldEmit(target, Ranges.GAIN.step * 2)) coalesced { repo.gain(group, target) }
     }
 
-    fun nudgeHpf(group: String, d: Int) = ch(group)?.let { c -> applyMutation { repo.hpf(group, clampHpf(c.hpf.freq + d, c.lpf.freq), null, null) } } ?: Unit
-    fun nudgeLpf(group: String, d: Int) = ch(group)?.let { c -> applyMutation { repo.lpf(group, clampLpf(c.lpf.freq + d, c.hpf.freq), null, null) } } ?: Unit
-    fun setHpfFreq(group: String, v: Int) = ch(group)?.let { c -> applyMutation { repo.hpf(group, clampHpf(v, c.lpf.freq), null, null) } } ?: Unit
-    fun setLpfFreq(group: String, v: Int) = ch(group)?.let { c -> applyMutation { repo.lpf(group, clampLpf(v, c.hpf.freq), null, null) } } ?: Unit
+    fun nudgeHpf(group: String, d: Int) = ch(group)?.let { c ->
+        applyMutation { repo.hpf(group, clampHpf(c.hpf.freq + d, c.lpf.freq, settings.value.stepHpf), null, null) }
+    } ?: Unit
+    fun nudgeLpf(group: String, d: Int) = ch(group)?.let { c ->
+        applyMutation { repo.lpf(group, clampLpf(c.lpf.freq + d, c.hpf.freq, settings.value.stepLpf), null, null) }
+    } ?: Unit
+    fun setHpfFreq(group: String, v: Int) = ch(group)?.let { c ->
+        applyMutation { repo.hpf(group, clampHpf(v, c.lpf.freq, settings.value.stepHpf), null, null) }
+    } ?: Unit
+    fun setLpfFreq(group: String, v: Int) = ch(group)?.let { c ->
+        applyMutation { repo.lpf(group, clampLpf(v, c.hpf.freq, settings.value.stepLpf), null, null) }
+    } ?: Unit
 
     /** Drag the HPF node on the curve. Routes through [coalesced] so rapid drags never queue
      *  more than one outstanding request — the latest pending value always wins. */
     fun dragHpfFreq(group: String, freq: Int, release: Boolean) {
         val c = ch(group) ?: return
-        val clamped = clampHpf(freq, c.lpf.freq)
+        val clamped = clampHpf(freq, c.lpf.freq, settings.value.stepHpf)
         if (release) {
             lastHpfDrag = null
             coalesced { repo.hpf(group, clamped, null, null) }
@@ -133,7 +147,7 @@ class ControlViewModel(
     /** Drag the LPF node on the curve. See [dragHpfFreq] for coalescing semantics. */
     fun dragLpfFreq(group: String, freq: Int, release: Boolean) {
         val c = ch(group) ?: return
-        val clamped = clampLpf(freq, c.hpf.freq)
+        val clamped = clampLpf(freq, c.hpf.freq, settings.value.stepLpf)
         if (release) {
             lastLpfDrag = null
             coalesced { repo.lpf(group, clamped, null, null) }
@@ -157,8 +171,11 @@ class ControlViewModel(
     }
 
     fun reset() {
-        hpfTypeOverride.clear()
-        lpfTypeOverride.clear()
+        val defaultType = FilterType.fromWire(settings.value.defaultFilterType)
+        for (g in listOf("mains", "subs")) {
+            hpfTypeOverride[g] = defaultType
+            lpfTypeOverride[g] = defaultType
+        }
         applyMutation { repo.reset() }
     }
 

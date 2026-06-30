@@ -65,9 +65,9 @@ class AppContainer(context: Context, private val scope: CoroutineScope) {
     private val activeGroup: StateFlow<String> =
         settings.map { it.activeGroup }.stateIn(scope, SharingStarted.Eagerly, SettingsDefaults.ACTIVE_GROUP)
 
-    val vm = ControlViewModel(repo, activeGroup) { g ->
+    val vm = ControlViewModel(repo, activeGroup, { g ->
         scope.launch { settingsStore.setActiveGroup(g) }
-    }
+    }, settings)
 
     // Block bodies so the return type is Unit — required for ::setHost / ::setHue / ::setOled
     // to satisfy (String) -> Unit / (Float) -> Unit / (Boolean) -> Unit at the call site in MainActivity.

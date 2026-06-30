@@ -32,6 +32,10 @@ class ControlViewModelTest {
         override suspend fun reset() = base
     }
 
+    private fun defaultSettings() = MutableStateFlow(
+        Settings(SettingsDefaults.HOST, SettingsDefaults.ACCENT_HUE, SettingsDefaults.ACTIVE_GROUP)
+    )
+
     // Reconciliation note (brief → actual):
     //   Brief used StandardTestDispatcher() and advanceUntilIdle(). That hangs because
     //   start() launches an infinite health-poll loop (while true + delay 5 s). Two fixes:
@@ -49,7 +53,7 @@ class ControlViewModelTest {
 
     @Test fun start_loadsStateAndConnects() = runTest(mainDispatcher) {
         val repo = AudioRepository { api(base) }
-        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
         vm.start()
         runCurrent() // runs T=0 tasks (loadState + first pollHealth); delay(5s) stays in future
         assertThat(vm.ui.value.dsp?.master_gain).isEqualTo(-45.0)
@@ -59,7 +63,7 @@ class ControlViewModelTest {
 
     @Test fun toggleMute_updatesFromResponse() = runTest(mainDispatcher) {
         val repo = AudioRepository { api(base) }
-        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
         vm.start(); runCurrent()
         vm.toggleMute(); runCurrent()
         assertThat(vm.ui.value.dsp?.mute).isTrue()
@@ -85,7 +89,7 @@ class ControlViewModelTest {
             override suspend fun reset() = base
         }
         val repo = AudioRepository { coalescingApi }
-        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
         vm.start(); runCurrent()
 
         val vA = -45.0; val vB = -44.0; val vC = -43.0
@@ -105,7 +109,7 @@ class ControlViewModelTest {
     // I-4: HPF type override wins over server echo (backend still returns "lr4" for the old server).
     @Test fun setHpfType_overrideBeatsServerEcho() = runTest(mainDispatcher) {
         val repo = AudioRepository { api(base) } // fake setHpf returns base (type="lr4" default)
-        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
         vm.start(); runCurrent()
         vm.setHpfType("subs", FilterType.BUTTER12); runCurrent()
         assertThat(vm.ui.value.dsp!!.subs.hpf.filterType).isEqualTo(FilterType.BUTTER12)
@@ -115,10 +119,48 @@ class ControlViewModelTest {
     // I-5: LPF type override wins over server echo.
     @Test fun setLpfType_overrideBeatsServerEcho() = runTest(mainDispatcher) {
         val repo = AudioRepository { api(base) } // fake setLpf returns base (type="lr4" default)
-        val vm = ControlViewModel(repo, MutableStateFlow("subs")) {}
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
         vm.start(); runCurrent()
         vm.setLpfType("subs", FilterType.BUTTER24); runCurrent()
         assertThat(vm.ui.value.dsp!!.subs.lpf.filterType).isEqualTo(FilterType.BUTTER24)
+        vm.viewModelScope.cancel()
+    }
+
+    // S-1: masterCap = -15.0 → setMaster(-10.0) clamps to -15.0 (can't exceed cap).
+    @Test fun setMaster_respectsConfiguredMasterCap() = runTest(mainDispatcher) {
+        val settingsFlow = MutableStateFlow(
+            Settings(SettingsDefaults.HOST, SettingsDefaults.ACCENT_HUE, SettingsDefaults.ACTIVE_GROUP,
+                masterCap = -15.0)
+        )
+        val repo = AudioRepository { api(base) }
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, settingsFlow)
+        vm.start(); runCurrent()
+        vm.setMaster(-10.0); runCurrent()
+        assertThat(vm.ui.value.dsp?.master_gain).isEqualTo(-15.0)
+        vm.viewModelScope.cancel()
+    }
+
+    // S-2: default masterCap = -20.0 → setMaster(-10.0) clamps to -20.0.
+    @Test fun setMaster_defaultCapClampsat20() = runTest(mainDispatcher) {
+        val repo = AudioRepository { api(base) }
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, defaultSettings())
+        vm.start(); runCurrent()
+        vm.setMaster(-10.0); runCurrent()
+        assertThat(vm.ui.value.dsp?.master_gain).isEqualTo(-20.0)
+        vm.viewModelScope.cancel()
+    }
+
+    // S-3: reset() applies defaultFilterType from settings — both groups get the configured default.
+    @Test fun reset_appliesDefaultFilterType() = runTest(mainDispatcher) {
+        val settingsFlow = MutableStateFlow(
+            Settings(SettingsDefaults.HOST, SettingsDefaults.ACCENT_HUE, SettingsDefaults.ACTIVE_GROUP,
+                defaultFilterType = "butter12") // non-lr4 to prove it's read from settings
+        )
+        val repo = AudioRepository { api(base) }
+        val vm = ControlViewModel(repo, MutableStateFlow("subs"), {}, settingsFlow)
+        vm.start(); runCurrent()
+        vm.reset(); runCurrent()
+        assertThat(vm.ui.value.dsp!!.subs.hpf.filterType).isEqualTo(FilterType.fromWire("butter12"))
         vm.viewModelScope.cancel()
     }
 }

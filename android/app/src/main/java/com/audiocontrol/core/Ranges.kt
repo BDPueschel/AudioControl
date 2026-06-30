@@ -19,14 +19,20 @@ fun Range.clampStep(value: Double): Double {
     return (clamped / step).roundToInt() * step
 }
 
-private fun snap5(v: Int): Int = ((v + 2) / 5) * 5
-
-fun clampHpf(freq: Int, lpfFreq: Int): Int {
-    val hi = lpfFreq - Ranges.GAP
-    return max(Ranges.HPF.min.toInt(), min(snap5(freq), snap5(hi)))
+/** Clamp [value] to [[min],[max]] then snap to the nearest multiple of [step]. */
+fun clampSnap(value: Double, min: Double, max: Double, step: Double): Double {
+    val clamped = value.coerceIn(min, max)
+    return (clamped / step).roundToInt() * step
 }
 
-fun clampLpf(freq: Int, hpfFreq: Int): Int {
+private fun snapN(v: Int, step: Int): Int = ((v + step / 2) / step) * step
+
+fun clampHpf(freq: Int, lpfFreq: Int, step: Int = 5): Int {
+    val hi = lpfFreq - Ranges.GAP
+    return max(Ranges.HPF.min.toInt(), min(snapN(freq, step), snapN(hi, step)))
+}
+
+fun clampLpf(freq: Int, hpfFreq: Int, step: Int = 5): Int {
     val lo = hpfFreq + Ranges.GAP
-    return min(Ranges.LPF.max.toInt(), max(snap5(freq), snap5(lo)))
+    return min(Ranges.LPF.max.toInt(), max(snapN(freq, step), snapN(lo, step)))
 }
