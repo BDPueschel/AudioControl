@@ -79,7 +79,9 @@ class DeviceController:
             ch = self._channel(group)
             if freq is not None:
                 gap_max = ch.lpf.freq - FILTER_GAP
-                ch.hpf.freq = max(HPF_FREQ_MIN, min(gap_max, round(freq / 5) * 5))
+                # 1 Hz resolution; the client quantizes to the user's chosen
+                # step, so don't re-snap to 5 Hz here (would drop a 1 Hz step).
+                ch.hpf.freq = max(HPF_FREQ_MIN, min(gap_max, round(freq)))
             if bypass is not None:
                 ch.hpf.bypass = bypass
             if type is not None:
@@ -92,7 +94,8 @@ class DeviceController:
             ch = self._channel(group)
             if freq is not None:
                 gap_min = ch.hpf.freq + FILTER_GAP
-                ch.lpf.freq = max(gap_min, min(LPF_FREQ_MAX, round(freq / 5) * 5))
+                # 1 Hz resolution (see set_hpf note).
+                ch.lpf.freq = max(gap_min, min(LPF_FREQ_MAX, round(freq)))
             if bypass is not None:
                 ch.lpf.bypass = bypass
             if type is not None:
