@@ -53,8 +53,10 @@ class DeviceController:
     # --- mutations -----------------------------------------------------------
     def set_master_gain(self, value: float) -> DspState:
         with self._lock:
+            # Round to 0.5 dB resolution (matches sub-gain); whole-dB rounding
+            # here silently dropped sub-dB master steps (e.g. a 0.5 dB step).
             self._state.master_gain = float(
-                max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(value)))
+                max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(value * 2) / 2))
             )
             self._save()
             return self.get_state()

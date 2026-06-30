@@ -175,7 +175,7 @@ class MinidspController(DeviceController):
         m = re.search(r"Gain\(\s*(-?\d+(?:\.\d+)?)\s*\)", status)
         if m:
             dev_master = float(m.group(1))
-            target = max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(dev_master)))
+            target = max(MASTER_GAIN_MIN, min(MASTER_GAIN_MAX, round(dev_master * 2) / 2))
             self._state.master_gain = target
             self._save()
             if target < dev_master:  # device louder than cap -> lower it
