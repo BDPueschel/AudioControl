@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -29,6 +30,9 @@ import kotlin.math.sqrt
 
 /** Log-space damping for horizontal drag → frequency mapping. 0.5 = half the log range per full-width drag. */
 private const val DAMP = 0.5f
+
+/** Half-width of the line-bloom window in normalized-x at full expansion (p=1). */
+private const val BLOOM_HALF_MAX = 0.16f
 
 @Composable
 fun PassbandCurve(
@@ -178,24 +182,39 @@ fun PassbandCurve(
             drawPath(fill, accent.copy(alpha = 0.10f))
             drawPath(line, accent, style = Stroke(width = 6f))
             val dash = PathEffect.dashPathEffect(floatArrayOf(8f, 8f))
-            listOf(Pair(hpf, hpfPulseVal), Pair(lpf, lpfPulseVal)).forEach { (fs, pulseVal) ->
+
+            // Pass 1: dashed frequency lines and node dots.
+            listOf(Pair(hpf, hpfPulseVal), Pair(lpf, lpfPulseVal)).forEach { (fs, _) ->
                 if (!fs.bypass) {
                     val x = (curveXNorm(fs.freq.toDouble()) * w).toFloat()
                     val y = (curveYNorm(curveDb(hpf, lpf, fs.freq.toDouble())) * h).toFloat()
                     drawLine(accent.copy(alpha = 0.45f), Offset(x, 0f), Offset(x, h), pathEffect = dash)
                     drawCircle(accent, radius = 11f, center = Offset(x, y))
                     drawCircle(Color(Ink.bg), radius = 6f, center = Offset(x, y))
-                    // Pulse ring: blooms outward from the node, fading to transparent.
-                    if (pulseVal > 0f) {
-                        val minR = 6.dp.toPx()
-                        val maxR = 22.dp.toPx()
-                        val pulseR = minR + pulseVal * (maxR - minR)
-                        val pulseAlpha = 0.5f * (1f - pulseVal)
-                        drawCircle(
-                            color = accent.copy(alpha = pulseAlpha),
-                            radius = pulseR,
-                            center = Offset(x, y),
-                            style = Stroke(width = 2.dp.toPx()),
+                }
+            }
+
+            // Pass 2: line blooms on top. Each active pulse grows a thickened/brightened segment
+            // of the curve that radiates outward from the node in both directions as it fades.
+            listOf(Pair(hpf, hpfPulseVal), Pair(lpf, lpfPulseVal)).forEach { (fs, p) ->
+                if (!fs.bypass && p > 0f) {
+                    val nodeX = curveXNorm(fs.freq.toDouble())
+                    val half = (p * BLOOM_HALF_MAX).toDouble()
+                    val lo = (nodeX - half).coerceIn(0.0, 1.0)
+                    val hi = (nodeX + half).coerceIn(0.0, 1.0)
+                    val sub = pts.filter { (xFrac, _) -> xFrac in lo..hi }
+                    if (sub.size >= 2) {
+                        val bloomPath = Path().apply {
+                            sub.forEachIndexed { i, (xFrac, yNorm) ->
+                                val px = (xFrac * w).toFloat()
+                                val py = (yNorm * h).toFloat()
+                                if (i == 0) moveTo(px, py) else lineTo(px, py)
+                            }
+                        }
+                        drawPath(
+                            bloomPath,
+                            color = accent.copy(alpha = (1f - p) * 0.6f),
+                            style = Stroke(width = 14f, cap = StrokeCap.Round),
                         )
                     }
                 }
